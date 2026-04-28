@@ -54,6 +54,7 @@ void update_position(const char* text, int len) {
 "new"           { update_position(yytext, yyleng); return NEW; }
 
 
+
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
     yylval.string = strdup(yytext);

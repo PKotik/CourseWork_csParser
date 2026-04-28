@@ -482,7 +482,6 @@ expression:
         free($2.type);
     }
 
-// НОВЫЕ ПРАВИЛА ДЛЯ EXPRESSION (добавлены)
     | TRUE
     {
         $$.type = strdup("bool");

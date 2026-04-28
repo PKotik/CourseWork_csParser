@@ -994,7 +994,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 57 "lexer.l"
+#line 58 "lexer.l"
 {
     update_position(yytext, yyleng);
     yylval.string = strdup(yytext);
@@ -1003,7 +1003,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 63 "lexer.l"
+#line 64 "lexer.l"
 {
     update_position(yytext, yyleng);
     yylval.num = atoi(yytext);
@@ -1012,178 +1012,178 @@ YY_RULE_SETUP
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 69 "lexer.l"
+#line 70 "lexer.l"
 { update_position(yytext, yyleng); return '{'; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 70 "lexer.l"
+#line 71 "lexer.l"
 { update_position(yytext, yyleng); return '}'; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 71 "lexer.l"
+#line 72 "lexer.l"
 { update_position(yytext, yyleng); return '('; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 72 "lexer.l"
+#line 73 "lexer.l"
 { update_position(yytext, yyleng); return ')'; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 73 "lexer.l"
+#line 74 "lexer.l"
 { update_position(yytext, yyleng); return ';'; }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 74 "lexer.l"
+#line 75 "lexer.l"
 { update_position(yytext, yyleng); return '='; }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 75 "lexer.l"
+#line 76 "lexer.l"
 { update_position(yytext, yyleng); return '+'; }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 76 "lexer.l"
+#line 77 "lexer.l"
 { update_position(yytext, yyleng); return '-'; }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 77 "lexer.l"
+#line 78 "lexer.l"
 { update_position(yytext, yyleng); return '*'; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 78 "lexer.l"
+#line 79 "lexer.l"
 { update_position(yytext, yyleng); return '/'; }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 79 "lexer.l"
+#line 80 "lexer.l"
 { update_position(yytext, yyleng); return ','; }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 80 "lexer.l"
+#line 81 "lexer.l"
 { update_position(yytext, yyleng); return '.'; }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 81 "lexer.l"
+#line 82 "lexer.l"
 { update_position(yytext, yyleng); return '|'; }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 82 "lexer.l"
+#line 83 "lexer.l"
 { update_position(yytext, yyleng); return '?'; }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 84 "lexer.l"
+#line 85 "lexer.l"
 { update_position(yytext, yyleng); return EQ_EQ; }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 85 "lexer.l"
+#line 86 "lexer.l"
 { update_position(yytext, yyleng); return NE; }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 86 "lexer.l"
+#line 87 "lexer.l"
 { update_position(yytext, yyleng); return '<'; }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 87 "lexer.l"
+#line 88 "lexer.l"
 { update_position(yytext, yyleng); return '>'; }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 88 "lexer.l"
+#line 89 "lexer.l"
 { update_position(yytext, yyleng); return LE; }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 89 "lexer.l"
+#line 90 "lexer.l"
 { update_position(yytext, yyleng); return GE; }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 90 "lexer.l"
+#line 91 "lexer.l"
 { update_position(yytext, yyleng); return AND_AND; }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 91 "lexer.l"
+#line 92 "lexer.l"
 { update_position(yytext, yyleng); return OR_OR; }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 92 "lexer.l"
+#line 93 "lexer.l"
 { update_position(yytext, yyleng); return '!'; }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 94 "lexer.l"
+#line 95 "lexer.l"
 { update_position(yytext, yyleng); return ARROW; }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 95 "lexer.l"
+#line 96 "lexer.l"
 { update_position(yytext, yyleng); return NULL_COALESCE_ASSIGN; }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 96 "lexer.l"
+#line 97 "lexer.l"
 { update_position(yytext, yyleng); return NULL_COALESCE; }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 98 "lexer.l"
+#line 99 "lexer.l"
 { update_position(yytext, yyleng); /* ignore XML doc comments */ }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 99 "lexer.l"
+#line 100 "lexer.l"
 { update_position(yytext, yyleng); /* ignore */ }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 100 "lexer.l"
+#line 101 "lexer.l"
 { BEGIN(COMMENT); }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 101 "lexer.l"
+#line 102 "lexer.l"
 { BEGIN(INITIAL); update_position(yytext, yyleng); }
 	YY_BREAK
 case 56:
 /* rule 56 can match eol */
 YY_RULE_SETUP
-#line 102 "lexer.l"
+#line 103 "lexer.l"
 { update_position(yytext, yyleng); /* ignore */ }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 104 "lexer.l"
+#line 105 "lexer.l"
 { update_position(yytext, yyleng); /* ignore preprocessor directives */ }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 105 "lexer.l"
+#line 106 "lexer.l"
 { update_position(yytext, yyleng); /* ignore #nullable directive */ }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 107 "lexer.l"
+#line 108 "lexer.l"
 { update_position(yytext, yyleng); return '.'; }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 109 "lexer.l"
+#line 110 "lexer.l"
 {
     fprintf(stderr, "Lexical error at line %d, column %d: unknown character '%s'\n", 
             line_num, column_num, yytext);
@@ -1193,7 +1193,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 116 "lexer.l"
+#line 117 "lexer.l"
 ECHO;
 	YY_BREAK
 #line 1200 "lex.yy.c"
@@ -2214,5 +2214,5 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 116 "lexer.l"
+#line 117 "lexer.l"
 

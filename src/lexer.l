@@ -71,6 +71,7 @@ void update_position(const char* text, int len) {
 "virtual"       { update_position(yytext, yyleng); return VIRTUAL; }
 "void"          { update_position(yytext, yyleng); return VOID; }
 "while"         { update_position(yytext, yyleng); return WHILE; }
+"Task"          { update_position(yytext, yyleng); return TASK; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);

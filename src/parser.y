@@ -96,6 +96,7 @@ const char* get_type_name(const char* type) {
 // Операторы
 %token EQ_EQ NE LE GE AND_AND OR_OR ARROW NULL_COALESCE_ASSIGN NULL_COALESCE
 %token ERROR
+%token TASK
 
 %type <expr> expression
 %type <string> type
@@ -225,34 +226,31 @@ field_declaration:
 method_declaration:
     modifiers type IDENTIFIER '(' parameter_list ')' 
     {
-        current_method_type = strdup($2);
+        // Проверяем, является ли тип Task или Task<...>
+        int is_async_task = 0;
+        char* actual_return_type = $2;
+        
+        if (strcmp($2, "Task") == 0) {
+            is_async_task = 1;
+            // Для Task, ожидаем void (не нужно возвращать значение)
+            actual_return_type = strdup("void");
+        } else if (strncmp($2, "Task<", 5) == 0) {
+            is_async_task = 1;
+            // Извлекаем тип из Task<T>
+            char* start = strchr($2, '<') + 1;
+            char* end = strchr(start, '>');
+            int len = end - start;
+            actual_return_type = malloc(len + 1);
+            strncpy(actual_return_type, start, len);
+            actual_return_type[len] = '\0';
+        }
+        
+        current_method_type = strdup(actual_return_type);
         current_method_name = strdup($3);
         current_method_has_return = 0;
-        printf("  Method: %s (return type: %s)\n", $3, $2);
+        printf("  Method: %s (return type: %s)\n", $3, actual_return_type);
         free($3);
-        free($2);
-    }
-    method_body
-    {
-        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
-            char err[256];
-            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-            yyerror(err);
-        }
-        free(current_method_type);
-        free(current_method_name);
-        current_method_type = NULL;
-        current_method_name = NULL;
-        current_method_has_return = 0;
-    }
-    | type IDENTIFIER '(' parameter_list ')' 
-    {
-        current_method_type = strdup($1);
-        current_method_name = strdup($2);
-        current_method_has_return = 0;
-        printf("  Method: %s (return type: %s)\n", $2, $1);
-        free($2);
-        free($1);
+        if (is_async_task) free($2);
     }
     method_body
     {
@@ -323,13 +321,25 @@ type:
     | VOID { $$ = strdup("void"); }
     | OBJECT { $$ = strdup("object"); }
     | VAR { $$ = strdup("var"); }
-    | IDENTIFIER { $$ = $1; }  // Любой "пользовательский" тип (DateTime, Task, и т.д.)
+    | TASK { $$ = strdup("Task"); }
+    | TASK '<' type '>' { 
+        char* task_type = malloc(strlen("Task<") + strlen($3) + 2);
+        sprintf(task_type, "Task<%s>", $3);
+        $$ = task_type;
+        free($3);
+    }
+    | IDENTIFIER { $$ = $1; }
     | type '?' { 
         char* nullable = malloc(strlen($1) + 2);
         sprintf(nullable, "%s?", $1);
         $$ = nullable;
         free($1);
     }
+    ;
+
+type_list:
+    type
+    | type_list ',' type
     ;
 
 parameter_list:
@@ -373,7 +383,8 @@ statement:
     | block
     | IF '(' expression ')' statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && strcmp($3.type, "unknown") != 0) {
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
+            strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
             yyerror(err);
@@ -382,7 +393,8 @@ statement:
     }
     | IF '(' expression ')' statement ELSE statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && strcmp($3.type, "unknown") != 0) {
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
+            strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
             yyerror(err);
@@ -391,7 +403,8 @@ statement:
     }
     | WHILE '(' expression ')' statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && strcmp($3.type, "unknown") != 0) {
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
+            strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
             yyerror(err);
@@ -610,6 +623,26 @@ expression:
         }
         free($1.type);
         free($3.type);
+    }
+    | expression '.' IDENTIFIER '<' type_list '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '.' IDENTIFIER '<' type_list '>' '(' ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '?' '.' IDENTIFIER
+    {
+        $$.type = strdup("unknown");
+        free($4);
+    }
+    | expression '?' '.' IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($4);
     }
     ;
 

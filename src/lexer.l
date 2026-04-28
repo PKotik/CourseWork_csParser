@@ -42,6 +42,18 @@ void update_position(const char* text, int len) {
 "else"          { update_position(yytext, yyleng); return ELSE; }
 "while"         { update_position(yytext, yyleng); return WHILE; }
 
+"namespace"     { update_position(yytext, yyleng); return NAMESPACE; }
+"using"         { update_position(yytext, yyleng); return USING; }
+"async"         { update_position(yytext, yyleng); return ASYNC; }
+"await"         { update_position(yytext, yyleng); return AWAIT; }
+"var"           { update_position(yytext, yyleng); return VAR; }
+"Task"          { update_position(yytext, yyleng); return TASK; }
+"true"          { update_position(yytext, yyleng); return TRUE; }
+"false"         { update_position(yytext, yyleng); return FALSE; }
+"null"          { update_position(yytext, yyleng); return NULL_; }
+"new"           { update_position(yytext, yyleng); return NEW; }
+
+
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
     yylval.string = strdup(yytext);
@@ -65,6 +77,9 @@ void update_position(const char* text, int len) {
 "*"             { update_position(yytext, yyleng); return '*'; }
 "/"             { update_position(yytext, yyleng); return '/'; }
 ","             { update_position(yytext, yyleng); return ','; }
+"."             { update_position(yytext, yyleng); return '.'; }
+"|"             { update_position(yytext, yyleng); return '|'; }
+"?"             { update_position(yytext, yyleng); return '?'; }
 
 "=="            { update_position(yytext, yyleng); return EQ_EQ; }
 "!="            { update_position(yytext, yyleng); return NE; }
@@ -76,10 +91,18 @@ void update_position(const char* text, int len) {
 "||"            { update_position(yytext, yyleng); return OR_OR; }
 "!"             { update_position(yytext, yyleng); return '!'; }
 
+"=>"            { update_position(yytext, yyleng); return ARROW; }
+"??="           { update_position(yytext, yyleng); return NULL_COALESCE_ASSIGN; }
+"??"            { update_position(yytext, yyleng); return NULL_COALESCE; }
+
+"///".*         { update_position(yytext, yyleng); /* ignore XML doc comments */ }
 "//".*          { update_position(yytext, yyleng); /* ignore */ }
 "/*"            { BEGIN(COMMENT); }
 <COMMENT>"*/"   { BEGIN(INITIAL); update_position(yytext, yyleng); }
 <COMMENT>.|\n   { update_position(yytext, yyleng); /* ignore */ }
+
+"#".*           { update_position(yytext, yyleng); /* ignore preprocessor directives */ }
+"#nullable".*   { update_position(yytext, yyleng); /* ignore #nullable directive */ }
 
 . {
     fprintf(stderr, "Lexical error at line %d, column %d: unknown character '%s'\n", 

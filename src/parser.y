@@ -87,6 +87,10 @@ const char* get_type_name(const char* type) {
 %token <string> IDENTIFIER
 %token EQ_EQ NE LE GE AND_AND OR_OR
 
+// НОВЫЕ ТОКЕНЫ (добавлены)
+%token NAMESPACE USING ASYNC AWAIT VAR TASK TRUE FALSE NULL_ NEW
+%token ARROW NULL_COALESCE_ASSIGN NULL_COALESCE
+
 %type <expr> expression
 %type <string> type
 
@@ -103,7 +107,48 @@ const char* get_type_name(const char* type) {
 
 program:
     /* empty */
+    | program using_directive
+    | program namespace_declaration
     | program class_declaration
+    ;
+
+using_directive:
+    USING IDENTIFIER ';'
+    {
+        printf("Using: %s\n", $2);
+        free($2);
+    }
+    | USING IDENTIFIER '.' IDENTIFIER ';'
+    {
+        printf("Using: %s.%s\n", $2, $4);
+        free($2);
+        free($4);
+    }
+    | USING IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER ';'
+    {
+        printf("Using: %s.%s.%s\n", $2, $4, $6);
+        free($2);
+        free($4);
+        free($6);
+    }
+    ;
+
+namespace_declaration:
+    NAMESPACE IDENTIFIER namespace_body
+    {
+        printf("Namespace: %s\n", $2);
+        free($2);
+    }
+    | NAMESPACE IDENTIFIER '.' IDENTIFIER namespace_body
+    {
+        printf("Namespace: %s.%s\n", $2, $4);
+        free($2);
+        free($4);
+    }
+    ;
+
+namespace_body:
+    '{' program '}'
     ;
 
 class_declaration:
@@ -423,6 +468,69 @@ expression:
         $$.type = strdup("bool");
         free($2.type);
     }
+
+// НОВЫЕ ПРАВИЛА ДЛЯ EXPRESSION (добавлены)
+    | TRUE
+    {
+        $$.type = strdup("bool");
+    }
+    | FALSE
+    {
+        $$.type = strdup("bool");
+    }
+    | NULL_
+    {
+        $$.type = strdup("null");
+    }
+    | expression '.' IDENTIFIER
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '.' IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | AWAIT expression
+    {
+        $$.type = strdup($2.type);
+        free($2.type);
+    }
+    | NEW IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
+    | expression NULL_COALESCE expression
+    {
+        $$.type = strdup($1.type);
+        free($1.type);
+        free($3.type);
+    }
+    | expression NULL_COALESCE_ASSIGN expression
+    {
+        $$.type = strdup($1.type);
+        free($1.type);
+        free($3.type);
+    }
+    | expression '|' expression
+    {
+        if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
+            $$.type = strdup("int");
+        } else {
+            $$.type = strdup("unknown");
+        }
+        free($1.type);
+        free($3.type);
+    }
+    ;
+
+// НОВОЕ ПРАВИЛО ДЛЯ argument_list
+argument_list:
+    /* empty */
+    | expression
+    | argument_list ',' expression
     ;
 
 %%

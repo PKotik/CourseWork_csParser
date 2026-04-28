@@ -1,32 +1,42 @@
-public class MyClass {
-    int x;
-    private int y;
-    static int z;
+#nullable enable
+using ForPeople.Absence.Intersections.Configuration;
+using ForPeople.Core.MongoDb.Migration;
+using ForPeople.Domain.Configurator;
+using ForPeople.Domain.Configurator.Persistence;
+using MongoDB.Driver;
 
-    int Method1() {
-        int a = 5;
-        int b;
-        a = 10;
-        if (a >= b) {
-            return a;
-        } else {
-            return b;
+namespace ForPeople.Absence.Intersections.Migrations;
+
+/// <summary>
+/// Миграция для инициализации конфигурации Фильтров в конфигурации Пересечений отсутствий
+/// </summary>
+public class AbsenceFilterInitialConfigurationMigration(
+    IConfigurationItemDocumentHolder itemDocumentHolder,
+    ConfigurationItemDbProvider configurationItemDbProvider)
+    : DbMigrationBase
+{
+    protected override DateTime Version => new DateTime(2026, 03, 12);
+
+    public override async Task Execute()
+    {
+        var config = (await itemDocumentHolder.GetActiveConfigurationByType(ConfigurationItemType.AbsenceIntersection)).FirstOrDefault();
+        if (config == null)
+            return;
+
+        var current = config.Current?.To<AbsenceFilterConfigurationItemData>();
+        var draft = config.Draft?.To<AbsenceFilterConfigurationItemData>();
+
+        if (InitialConfigItem(current) | InitialConfigItem(draft))
+            await configurationItemDbProvider.DbOperations.Update(config);
+    }
+
+    static bool InitialConfigItem(ConfigurationData<AbsenceFilterConfigurationItemData>? config)
+    {
+        if (config != null)
+        {
+            config.Item ??= new AbsenceFilterConfigurationItemData();
+            return true;
         }
-    }
-
-    void Method2() {
-        int x = 0;
-        while (x <= 10) {
-            x = x + 1;
-        }
-        return;
-    }
-
-    void Method3() {
-        return 8;  // Ошибка: void не может возвращать значение
-    }
-
-    int Method4() {
-        return;    // Ошибка: int должен возвращать значение
+        return false;
     }
 }

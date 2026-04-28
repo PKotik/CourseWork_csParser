@@ -30,30 +30,47 @@ void update_position(const char* text, int len) {
 [ \t\r]+        { update_position(yytext, yyleng); /* ignore */ }
 \n              { update_position(yytext, yyleng); /* ignore */ }
 
-"class"         { update_position(yytext, yyleng); return CLASS; }
-"int"           { update_position(yytext, yyleng); return INT; }
-"string"        { update_position(yytext, yyleng); return STRING; }
-"return"        { update_position(yytext, yyleng); return RETURN; }
-"public"        { update_position(yytext, yyleng); return PUBLIC; }
-"private"       { update_position(yytext, yyleng); return PRIVATE; }
-"static"        { update_position(yytext, yyleng); return STATIC; }
-"void"          { update_position(yytext, yyleng); return VOID; }
-"if"            { update_position(yytext, yyleng); return IF; }
-"else"          { update_position(yytext, yyleng); return ELSE; }
-"while"         { update_position(yytext, yyleng); return WHILE; }
-
-"namespace"     { update_position(yytext, yyleng); return NAMESPACE; }
-"using"         { update_position(yytext, yyleng); return USING; }
+"abstract"      { update_position(yytext, yyleng); return ABSTRACT; }
 "async"         { update_position(yytext, yyleng); return ASYNC; }
 "await"         { update_position(yytext, yyleng); return AWAIT; }
-"var"           { update_position(yytext, yyleng); return VAR; }
-"Task"          { update_position(yytext, yyleng); return TASK; }
-"true"          { update_position(yytext, yyleng); return TRUE; }
+"bool"          { update_position(yytext, yyleng); return BOOL; }
+"break"         { update_position(yytext, yyleng); return BREAK; }
+"case"          { update_position(yytext, yyleng); return CASE; }
+"catch"         { update_position(yytext, yyleng); return CATCH; }
+"class"         { update_position(yytext, yyleng); return CLASS; }
+"continue"      { update_position(yytext, yyleng); return CONTINUE; }
+"default"       { update_position(yytext, yyleng); return DEFAULT; }
+"else"          { update_position(yytext, yyleng); return ELSE; }
 "false"         { update_position(yytext, yyleng); return FALSE; }
-"null"          { update_position(yytext, yyleng); return NULL_; }
+"finally"       { update_position(yytext, yyleng); return FINALLY; }
+"for"           { update_position(yytext, yyleng); return FOR; }
+"foreach"       { update_position(yytext, yyleng); return FOREACH; }
+"get"           { update_position(yytext, yyleng); return GET; }
+"if"            { update_position(yytext, yyleng); return IF; }
+"int"           { update_position(yytext, yyleng); return INT; }
+"internal"      { update_position(yytext, yyleng); return INTERNAL; }
+"namespace"     { update_position(yytext, yyleng); return NAMESPACE; }
 "new"           { update_position(yytext, yyleng); return NEW; }
-
-
+"null"          { update_position(yytext, yyleng); return NULL_; }
+"object"        { update_position(yytext, yyleng); return OBJECT; }
+"override"      { update_position(yytext, yyleng); return OVERRIDE; }
+"private"       { update_position(yytext, yyleng); return PRIVATE; }
+"protected"     { update_position(yytext, yyleng); return PROTECTED; }
+"public"        { update_position(yytext, yyleng); return PUBLIC; }
+"return"        { update_position(yytext, yyleng); return RETURN; }
+"sealed"        { update_position(yytext, yyleng); return SEALED; }
+"set"           { update_position(yytext, yyleng); return SET; }
+"static"        { update_position(yytext, yyleng); return STATIC; }
+"string"        { update_position(yytext, yyleng); return STRING; }
+"switch"        { update_position(yytext, yyleng); return SWITCH; }
+"throw"         { update_position(yytext, yyleng); return THROW; }
+"true"          { update_position(yytext, yyleng); return TRUE; }
+"try"           { update_position(yytext, yyleng); return TRY; }
+"using"         { update_position(yytext, yyleng); return USING; }
+"var"           { update_position(yytext, yyleng); return VAR; }
+"virtual"       { update_position(yytext, yyleng); return VIRTUAL; }
+"void"          { update_position(yytext, yyleng); return VOID; }
+"while"         { update_position(yytext, yyleng); return WHILE; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
@@ -71,16 +88,21 @@ void update_position(const char* text, int len) {
 "}"             { update_position(yytext, yyleng); return '}'; }
 "("             { update_position(yytext, yyleng); return '('; }
 ")"             { update_position(yytext, yyleng); return ')'; }
+"["             { update_position(yytext, yyleng); return '['; }
+"]"             { update_position(yytext, yyleng); return ']'; }
 ";"             { update_position(yytext, yyleng); return ';'; }
 "="             { update_position(yytext, yyleng); return '='; }
 "+"             { update_position(yytext, yyleng); return '+'; }
 "-"             { update_position(yytext, yyleng); return '-'; }
 "*"             { update_position(yytext, yyleng); return '*'; }
 "/"             { update_position(yytext, yyleng); return '/'; }
+"%"             { update_position(yytext, yyleng); return '%'; }
 ","             { update_position(yytext, yyleng); return ','; }
+":"             { update_position(yytext, yyleng); return ':'; }
 "."             { update_position(yytext, yyleng); return '.'; }
 "|"             { update_position(yytext, yyleng); return '|'; }
 "?"             { update_position(yytext, yyleng); return '?'; }
+"~"             { update_position(yytext, yyleng); return '~'; }
 
 "=="            { update_position(yytext, yyleng); return EQ_EQ; }
 "!="            { update_position(yytext, yyleng); return NE; }
@@ -103,9 +125,6 @@ void update_position(const char* text, int len) {
 <COMMENT>.|\n   { update_position(yytext, yyleng); /* ignore */ }
 
 "#".*           { update_position(yytext, yyleng); /* ignore preprocessor directives */ }
-"#nullable".*   { update_position(yytext, yyleng); /* ignore #nullable directive */ }
-
-"."             { update_position(yytext, yyleng); return '.'; }
 
 . {
     fprintf(stderr, "Lexical error at line %d, column %d: unknown character '%s'\n", 

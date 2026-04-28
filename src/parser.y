@@ -70,6 +70,7 @@ const char* get_type_name(const char* type) {
     if (strcmp(type, "string") == 0) return "string";
     if (strcmp(type, "void") == 0) return "void";
     if (strcmp(type, "bool") == 0) return "bool";
+    if (strcmp(type, "object") == 0) return "object";
     return type;
 }
 %}
@@ -82,14 +83,19 @@ const char* get_type_name(const char* type) {
     } expr;
 }
 
-%token CLASS INT STRING RETURN PUBLIC PRIVATE STATIC VOID IF ELSE WHILE ERROR
+// Базовые токены
 %token <num> INT_LITERAL
 %token <string> IDENTIFIER
-%token EQ_EQ NE LE GE AND_AND OR_OR
 
-// НОВЫЕ ТОКЕНЫ (добавлены)
-%token NAMESPACE USING ASYNC AWAIT VAR TASK TRUE FALSE NULL_ NEW
-%token ARROW NULL_COALESCE_ASSIGN NULL_COALESCE
+// Ключевые слова C#
+%token ABSTRACT ASYNC AWAIT BOOL BREAK CASE CATCH CLASS CONTINUE DEFAULT
+%token ELSE FALSE FINALLY FOR FOREACH GET IF INT INTERNAL NAMESPACE NEW
+%token NULL_ OBJECT OVERRIDE PRIVATE PROTECTED PUBLIC RETURN SEALED SET
+%token STATIC STRING SWITCH THROW TRUE TRY USING VAR VIRTUAL VOID WHILE
+
+// Операторы
+%token EQ_EQ NE LE GE AND_AND OR_OR ARROW NULL_COALESCE_ASSIGN NULL_COALESCE
+%token ERROR
 
 %type <expr> expression
 %type <string> type
@@ -98,7 +104,7 @@ const char* get_type_name(const char* type) {
 %left '<' '>' LE GE EQ_EQ NE
 %right '!'
 %left '+' '-'
-%left '*' '/'
+%left '*' '/' '%'
 %nonassoc UMINUS
 
 %start program
@@ -124,7 +130,7 @@ using_directive:
     }
     | USING IDENTIFIER '=' qualified_identifier ';'
     {
-        printf("Using alias: %s\n", $2);
+        printf("Using alias: %s = ...\n", $2);
         free($2);
     }
     ;
@@ -132,10 +138,6 @@ using_directive:
 namespace_declaration:
     block_namespace
     | file_scoped_namespace
-    ;
-
-namespace_body:
-    '{' program '}'
     ;
 
 block_namespace:
@@ -171,11 +173,6 @@ class_primary_constructor:
 
 class_inheritance:
     /* empty */
-    | ':' IDENTIFIER
-    {
-        printf("  Inherits from: %s\n", $2);
-        free($2);
-    }
     | ':' qualified_identifier
     {
         printf("  Inherits from\n");
@@ -186,7 +183,11 @@ class_modifiers:
     /* empty */
     | class_modifiers PUBLIC
     | class_modifiers PRIVATE
+    | class_modifiers PROTECTED
+    | class_modifiers INTERNAL
     | class_modifiers STATIC
+    | class_modifiers ABSTRACT
+    | class_modifiers SEALED
     ;
 
 class_body:
@@ -201,6 +202,7 @@ class_members:
 class_member:
     field_declaration
     | method_declaration
+    | property_declaration
     ;
 
 field_declaration:
@@ -211,23 +213,9 @@ field_declaration:
         free($2);
         free($1);
     }
-    | PUBLIC type IDENTIFIER ';'
+    | modifiers type IDENTIFIER ';'
     {
-        printf("  Field (public): %s\n", $3);
-        add_symbol($3, $2);
-        free($3);
-        free($2);
-    }
-    | PRIVATE type IDENTIFIER ';'
-    {
-        printf("  Field (private): %s\n", $3);
-        add_symbol($3, $2);
-        free($3);
-        free($2);
-    }
-    | STATIC type IDENTIFIER ';'
-    {
-        printf("  Field (static): %s\n", $3);
+        printf("  Field: %s\n", $3);
         add_symbol($3, $2);
         free($3);
         free($2);
@@ -235,9 +223,30 @@ field_declaration:
     ;
 
 method_declaration:
-    type IDENTIFIER '(' parameter_list ')'
+    modifiers type IDENTIFIER '(' parameter_list ')' 
     {
-        // Сохраняем тип и имя метода ДО того, как парсим тело
+        current_method_type = strdup($2);
+        current_method_name = strdup($3);
+        current_method_has_return = 0;
+        printf("  Method: %s (return type: %s)\n", $3, $2);
+        free($3);
+        free($2);
+    }
+    method_body
+    {
+        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
+            char err[256];
+            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            yyerror(err);
+        }
+        free(current_method_type);
+        free(current_method_name);
+        current_method_type = NULL;
+        current_method_name = NULL;
+        current_method_has_return = 0;
+    }
+    | type IDENTIFIER '(' parameter_list ')' 
+    {
         current_method_type = strdup($1);
         current_method_name = strdup($2);
         current_method_has_return = 0;
@@ -247,7 +256,6 @@ method_declaration:
     }
     method_body
     {
-        // После тела метода проверяем, есть ли return
         if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
@@ -261,11 +269,67 @@ method_declaration:
     }
     ;
 
+property_declaration:
+    modifiers type IDENTIFIER ARROW expression ';'
+    {
+        printf("  Expression-bodied property: %s (type: %s)\n", $3, $2);
+        free($3);
+        free($2);
+        free($5.type);
+    }
+    | modifiers type IDENTIFIER '{' accessors '}'
+    {
+        printf("  Property: %s (type: %s)\n", $3, $2);
+        free($3);
+        free($2);
+    }
+    ;
+
+accessors:
+    /* empty */
+    | accessor
+    | accessors accessor
+    ;
+
+accessor:
+    GET ';'
+    | SET ';'
+    | GET block
+    | SET block
+    | modifiers GET ';'
+    | modifiers SET ';'
+    | modifiers GET block
+    | modifiers SET block
+    ;
+
+modifiers:
+    /* empty */
+    | modifiers PUBLIC
+    | modifiers PRIVATE
+    | modifiers PROTECTED
+    | modifiers INTERNAL
+    | modifiers STATIC
+    | modifiers OVERRIDE
+    | modifiers VIRTUAL
+    | modifiers ABSTRACT
+    | modifiers SEALED
+    | modifiers ASYNC
+    ;
+
 type:
     INT { $$ = strdup("int"); }
     | STRING { $$ = strdup("string"); }
+    | BOOL { $$ = strdup("bool"); }
     | VOID { $$ = strdup("void"); }
-    | IDENTIFIER { $$ = $1; }
+    | OBJECT { $$ = strdup("object"); }
+    | VAR { $$ = strdup("var"); }
+    | IDENTIFIER { $$ = $1; }  // Любой "пользовательский" тип (DateTime, Task, и т.д.)
+    | type '?' { 
+        char* nullable = malloc(strlen($1) + 2);
+        sprintf(nullable, "%s?", $1);
+        $$ = nullable;
+        free($1);
+    }
     ;
 
 parameter_list:
@@ -288,6 +352,7 @@ method_body:
     ';' 
     {
         // Абстрактный метод
+        current_method_has_return = 1;
     }
     | block
     ;
@@ -381,7 +446,7 @@ return_statement:
     {
         if (current_method_type && strcmp(current_method_type, "void") != 0) {
             char err[256];
-            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            snprintf(err, sizeof(err), "Non-void method must return a value");
             yyerror(err);
         }
         current_method_has_return = 1;
@@ -390,13 +455,13 @@ return_statement:
     {
         if (current_method_type && strcmp(current_method_type, "void") == 0) {
             char err[256];
-            snprintf(err, sizeof(err), "Void method '%s' cannot return a value (got '%s')", 
-                     current_method_name, get_type_name($2.type));
+            snprintf(err, sizeof(err), "Void method cannot return a value (got '%s')", 
+                     get_type_name($2.type));
             yyerror(err);
         } else if (current_method_type && strcmp($2.type, "unknown") != 0 && !is_type_compatible(current_method_type, $2.type)) {
             char err[256];
-            snprintf(err, sizeof(err), "Return type mismatch in '%s': expected '%s', got '%s'",
-                     current_method_name, get_type_name(current_method_type), get_type_name($2.type));
+            snprintf(err, sizeof(err), "Return type mismatch: expected '%s', got '%s'",
+                     get_type_name(current_method_type), get_type_name($2.type));
             yyerror(err);
         }
         current_method_has_return = 1;
@@ -419,6 +484,18 @@ expression:
         }
         free($1);
     }
+    | TRUE
+    {
+        $$.type = strdup("bool");
+    }
+    | FALSE
+    {
+        $$.type = strdup("bool");
+    }
+    | NULL_
+    {
+        $$.type = strdup("null");
+    }
     | expression '+' expression
     {
         if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
@@ -435,6 +512,7 @@ expression:
     | expression '-' expression
     | expression '*' expression
     | expression '/' expression
+    | expression '%' expression
     {
         if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
             $$.type = strdup("int");
@@ -481,20 +559,12 @@ expression:
         $$.type = strdup("bool");
         free($2.type);
     }
-
-    | TRUE
-    {
-        $$.type = strdup("bool");
-    }
-    | FALSE
-    {
-        $$.type = strdup("bool");
-    }
-    | NULL_
-    {
-        $$.type = strdup("null");
-    }
     | expression '.' IDENTIFIER
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '.' IDENTIFIER '(' ')'
     {
         $$.type = strdup("unknown");
         free($3);
@@ -504,15 +574,20 @@ expression:
         $$.type = strdup("unknown");
         free($3);
     }
+    | expression '.' IDENTIFIER '<' type '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+        free($5);
+    }
     | AWAIT expression
     {
         $$.type = strdup($2.type);
         free($2.type);
     }
-    | NEW IDENTIFIER '(' argument_list ')'
+    | NEW qualified_identifier '(' argument_list ')'
     {
-        $$.type = strdup($2);
-        free($2);
+        $$.type = strdup("unknown");
     }
     | expression NULL_COALESCE expression
     {
@@ -538,7 +613,6 @@ expression:
     }
     ;
 
-// НОВОЕ ПРАВИЛО ДЛЯ argument_list
 argument_list:
     /* empty */
     | expression

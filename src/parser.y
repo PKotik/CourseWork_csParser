@@ -105,6 +105,11 @@ const char* get_type_name(const char* type) {
 
 %%
 
+qualified_identifier:
+    IDENTIFIER
+    | qualified_identifier '.' IDENTIFIER
+    ;
+
 program:
     /* empty */
     | program using_directive
@@ -113,50 +118,54 @@ program:
     ;
 
 using_directive:
-    USING IDENTIFIER ';'
+    USING qualified_identifier ';'
     {
-        printf("Using: %s\n", $2);
-        free($2);
+        printf("Using directive\n");
     }
-    | USING IDENTIFIER '.' IDENTIFIER ';'
+    | USING IDENTIFIER '=' qualified_identifier ';'
     {
-        printf("Using: %s.%s\n", $2, $4);
+        printf("Using alias: %s\n", $2);
         free($2);
-        free($4);
-    }
-    | USING IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER ';'
-    {
-        printf("Using: %s.%s.%s\n", $2, $4, $6);
-        free($2);
-        free($4);
-        free($6);
     }
     ;
 
 namespace_declaration:
-    NAMESPACE IDENTIFIER namespace_body
-    {
-        printf("Namespace: %s\n", $2);
-        free($2);
-    }
-    | NAMESPACE IDENTIFIER '.' IDENTIFIER namespace_body
-    {
-        printf("Namespace: %s.%s\n", $2, $4);
-        free($2);
-        free($4);
-    }
+    block_namespace
+    | file_scoped_namespace
     ;
 
 namespace_body:
     '{' program '}'
     ;
 
+block_namespace:
+    NAMESPACE qualified_identifier '{' program '}'
+    {
+        printf("Block namespace\n");
+    }
+    ;
+
+file_scoped_namespace:
+    NAMESPACE qualified_identifier ';'
+    {
+        printf("File-scoped namespace\n");
+    }
+    ;
+
 class_declaration:
-    class_modifiers CLASS IDENTIFIER class_inheritance class_body
+    class_modifiers CLASS IDENTIFIER class_primary_constructor class_inheritance class_body
     {
         printf("Valid class: %s\n", $3);
         free($3);
         clear_symbols();
+    }
+    ;
+
+class_primary_constructor:
+    /* empty */
+    | '(' parameter_list ')'
+    {
+        printf("  Primary constructor\n");
     }
     ;
 
@@ -166,6 +175,10 @@ class_inheritance:
     {
         printf("  Inherits from: %s\n", $2);
         free($2);
+    }
+    | ':' qualified_identifier
+    {
+        printf("  Inherits from\n");
     }
     ;
 

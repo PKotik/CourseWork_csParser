@@ -104,6 +104,8 @@ void update_position(const char* text, int len) {
 "#".*           { update_position(yytext, yyleng); /* ignore preprocessor directives */ }
 "#nullable".*   { update_position(yytext, yyleng); /* ignore #nullable directive */ }
 
+"."             { update_position(yytext, yyleng); return '.'; }
+
 . {
     fprintf(stderr, "Lexical error at line %d, column %d: unknown character '%s'\n", 
             line_num, column_num, yytext);

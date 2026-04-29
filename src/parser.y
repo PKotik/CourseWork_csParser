@@ -8,6 +8,7 @@ extern int column_num;
 extern char* yytext;
 extern FILE* yyin;
 
+void print_semantic_error(const char* msg);
 void yyerror(const char* msg);
 int yylex(void);
 
@@ -703,7 +704,6 @@ argument_list:
 %%
 
 void yyerror(const char* msg) {
-    fprintf(stderr, "Semantic error at line %d, column %d: %s\n", 
-            line_num, column_num, msg);
+    print_semantic_error(msg);
     has_errors = 1;
 }

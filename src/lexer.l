@@ -6,6 +6,8 @@
 
 int line_num = 1;
 int column_num = 1;
+char current_line[1024];
+int current_line_pos = 0;
 
 void update_position(const char* text, int len) {
     int i;
@@ -13,10 +15,51 @@ void update_position(const char* text, int len) {
         if (text[i] == '\n') {
             line_num++;
             column_num = 1;
+            current_line_pos = 0;
+            memset(current_line, 0, sizeof(current_line));
         } else {
+            if (current_line_pos < sizeof(current_line) - 1) {
+                current_line[current_line_pos++] = text[i];
+                current_line[current_line_pos] = '\0';
+            }
             column_num++;
         }
     }
+}
+
+void print_error_with_context(const char* msg, const char* token) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "#==================================================================#\n");
+    fprintf(stderr, "# ERROR: %s\n", msg);
+    fprintf(stderr, "#==================================================================#\n");
+    fprintf(stderr, "# Location: line %d, column %d\n", line_num, column_num);
+    fprintf(stderr, "# Token: '%s'\n", token ? token : "unknown");
+    fprintf(stderr, "#==================================================================#\n");
+    fprintf(stderr, "# Line %d: %s\n", line_num, current_line);
+    fprintf(stderr, "#          ");
+    for (int i = 1; i < column_num; i++) {
+        fprintf(stderr, " ");
+    }
+    fprintf(stderr, "^~~~~~~\n");
+    fprintf(stderr, "#==================================================================#\n");
+}
+
+// Функция для вывода семантической ошибки
+void print_semantic_error(const char* msg) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "#==================================================================#\n");
+    fprintf(stderr, "# SEMANTIC ERROR\n");
+    fprintf(stderr, "#==================================================================#\n");
+    fprintf(stderr, "# %s\n", msg);
+    fprintf(stderr, "#==================================================================#\n");
+    fprintf(stderr, "# Location: line %d, column %d\n", line_num, column_num);
+    fprintf(stderr, "# Current line: %s\n", current_line);
+    fprintf(stderr, "#               ");
+    for (int i = 1; i < column_num; i++) {
+        fprintf(stderr, " ");
+    }
+    fprintf(stderr, "^~~~~~~\n");
+    fprintf(stderr, "#==================================================================#\n");
 }
 %}
 
@@ -128,8 +171,9 @@ void update_position(const char* text, int len) {
 "#".*           { update_position(yytext, yyleng); /* ignore preprocessor directives */ }
 
 . {
-    fprintf(stderr, "Lexical error at line %d, column %d: unknown character '%s'\n", 
-            line_num, column_num, yytext);
+    char err_msg[256];
+    snprintf(err_msg, sizeof(err_msg), "Unknown character '%s'", yytext);
+    print_error_with_context(err_msg, yytext);
     update_position(yytext, yyleng);
     return ERROR;
 }

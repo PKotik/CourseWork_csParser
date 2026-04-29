@@ -226,31 +226,79 @@ field_declaration:
 method_declaration:
     modifiers type IDENTIFIER '(' parameter_list ')' 
     {
-        // Проверяем, является ли тип Task или Task<...>
-        int is_async_task = 0;
-        char* actual_return_type = $2;
-        
-        if (strcmp($2, "Task") == 0) {
-            is_async_task = 1;
-            // Для Task, ожидаем void (не нужно возвращать значение)
-            actual_return_type = strdup("void");
-        } else if (strncmp($2, "Task<", 5) == 0) {
-            is_async_task = 1;
-            // Извлекаем тип из Task<T>
-            char* start = strchr($2, '<') + 1;
-            char* end = strchr(start, '>');
-            int len = end - start;
-            actual_return_type = malloc(len + 1);
-            strncpy(actual_return_type, start, len);
-            actual_return_type[len] = '\0';
-        }
-        
-        current_method_type = strdup(actual_return_type);
+        current_method_type = strdup($2);
         current_method_name = strdup($3);
         current_method_has_return = 0;
-        printf("  Method: %s (return type: %s)\n", $3, actual_return_type);
+        printf("  Method: %s (return type: %s)\n", $3, $2);
         free($3);
-        if (is_async_task) free($2);
+        free($2);
+    }
+    method_body
+    {
+        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
+            char err[256];
+            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            yyerror(err);
+        }
+        free(current_method_type);
+        free(current_method_name);
+        current_method_type = NULL;
+        current_method_name = NULL;
+        current_method_has_return = 0;
+    }
+    | type IDENTIFIER '(' parameter_list ')' 
+    {
+        current_method_type = strdup($1);
+        current_method_name = strdup($2);
+        current_method_has_return = 0;
+        printf("  Method: %s (return type: %s)\n", $2, $1);
+        free($2);
+        free($1);
+    }
+    method_body
+    {
+        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
+            char err[256];
+            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            yyerror(err);
+        }
+        free(current_method_type);
+        free(current_method_name);
+        current_method_type = NULL;
+        current_method_name = NULL;
+        current_method_has_return = 0;
+    }
+    | modifiers TASK IDENTIFIER '(' parameter_list ')' 
+    {
+        // async Task метод - возвращает void
+        current_method_type = strdup("void");
+        current_method_name = strdup($3);
+        current_method_has_return = 0;
+        printf("  Async Method: %s (return type: void)\n", $3);
+        free($3);
+    }
+    method_body
+    {
+        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
+            char err[256];
+            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            yyerror(err);
+        }
+        free(current_method_type);
+        free(current_method_name);
+        current_method_type = NULL;
+        current_method_name = NULL;
+        current_method_has_return = 0;
+    }
+    | modifiers TASK '<' type '>' IDENTIFIER '(' parameter_list ')' 
+    {
+        // async Task<T> метод - возвращает T
+        current_method_type = strdup($4);
+        current_method_name = strdup($6);
+        current_method_has_return = 0;
+        printf("  Async Method: %s (return type: %s)\n", $6, $4);
+        free($6);
+        free($4);
     }
     method_body
     {

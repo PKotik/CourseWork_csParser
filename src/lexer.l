@@ -115,6 +115,7 @@ void print_semantic_error(const char* msg) {
 "void"          { update_position(yytext, yyleng); return VOID; }
 "while"         { update_position(yytext, yyleng); return WHILE; }
 "Task"          { update_position(yytext, yyleng); return TASK; }
+"partial"       { update_position(yytext, yyleng); return PARTIAL; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);

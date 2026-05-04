@@ -93,6 +93,7 @@ const char* get_type_name(const char* type) {
 %token ELSE FALSE FINALLY FOR FOREACH GET IF INT INTERNAL NAMESPACE NEW
 %token NULL_ OBJECT OVERRIDE PRIVATE PROTECTED PUBLIC RETURN SEALED SET
 %token STATIC STRING SWITCH THROW TRUE TRY USING VAR VIRTUAL VOID WHILE
+%token PARTIAL
 
 // Операторы
 %token EQ_EQ NE LE GE AND_AND OR_OR ARROW NULL_COALESCE_ASSIGN NULL_COALESCE
@@ -190,6 +191,7 @@ class_modifiers:
     | class_modifiers STATIC
     | class_modifiers ABSTRACT
     | class_modifiers SEALED
+    | class_modifiers PARTIAL
     ;
 
 class_body:
@@ -419,6 +421,11 @@ parameter:
         add_symbol($2, $1);
         printf("    Parameter: %s %s\n", $1, $2);
         free($2);
+        free($1);
+    }
+    | IDENTIFIER
+    {
+        // для случаев (_, _) => ...
         free($1);
     }
     ;
@@ -745,6 +752,50 @@ expression:
         $$.type = strdup($1.type);
         free($1.type);
         free($3.type);
+    }
+    | IDENTIFIER ARROW expression
+    {
+        $$.type = strdup("unknown");
+        free($1);
+        free($3.type);
+    }
+    | IDENTIFIER ARROW block
+    {
+        $$.type = strdup("unknown");
+        free($1);
+    }
+    | '(' parameter_list ')' ARROW expression
+    {
+        $$.type = strdup("unknown");
+    }
+    | '(' parameter_list ')' ARROW block
+    {
+        $$.type = strdup("unknown");
+    }
+    | ASYNC IDENTIFIER ARROW expression
+    {
+        $$.type = strdup("unknown");
+        free($2);
+        free($4.type);
+    }
+    | ASYNC IDENTIFIER ARROW block
+    {
+        $$.type = strdup("unknown");
+        free($2);
+    }
+    | ASYNC '(' parameter_list ')' ARROW expression
+    {
+        $$.type = strdup("unknown");
+    }
+    | ASYNC '(' parameter_list ')' ARROW block
+    {
+        $$.type = strdup("unknown");
+    }
+    | IDENTIFIER '(' IDENTIFIER ')'
+    {
+        $$.type = strdup("unknown");
+        free($1);
+        free($3);
     }
     ;
 

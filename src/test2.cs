@@ -23,10 +23,10 @@ public class MyClass {
     }
 
     void Method3() {
-        return 5;  // Ошибка: void не может возвращать значение
+        return;
     }
 
     int Method4() {
-        return;    // Ошибка: int должен возвращать значение
+        return 3;
     }
 }

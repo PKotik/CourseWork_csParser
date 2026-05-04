@@ -377,6 +377,22 @@ type:
         $$ = task_type;
         free($3);
     }
+    | IDENTIFIER '<' type '>' '?'
+    {
+        char* tmp = malloc(strlen($1) + strlen($3) + 4);
+        sprintf(tmp, "%s<%s>?", $1, $3);
+        $$ = tmp;
+        free($1);
+        free($3);
+    }
+    | IDENTIFIER '<' type '>'
+    {
+        char* tmp = malloc(strlen($1) + strlen($3) + 3);
+        sprintf(tmp, "%s<%s>", $1, $3);
+        $$ = tmp;
+        free($1);
+        free($3);
+    }
     | IDENTIFIER { $$ = $1; }
     | type '?' { 
         char* nullable = malloc(strlen($1) + 2);
@@ -426,10 +442,7 @@ statements:
     ;
 
 statement:
-    declaration_statement
-    | assignment_statement
-    | return_statement
-    | block
+    block
     | IF '(' expression ')' statement
     {
         if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
@@ -460,24 +473,39 @@ statement:
         }
         free($3.type);
     }
+    | declaration_statement
+    | assignment_statement
+    | return_statement
+    | expression ';'
+    {
+        free($1.type);
+    }
     ;
 
 declaration_statement:
     type IDENTIFIER ';'
     {
+        printf("DEBUG: declaration_statement (no init)\n");
         add_symbol($2, $1);
         free($2);
         free($1);
     }
     | type IDENTIFIER '=' expression ';'
     {
-        if (strcmp($4.type, "unknown") != 0 && !is_type_compatible($1, $4.type)) {
-            char err[256];
-            snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'", 
-                     get_type_name($4.type), get_type_name($1));
-            yyerror(err);
+        printf("DEBUG: declaration_statement with init, type=%s, var=%s, expr_type=%s\n", $1, $2, $4.type);
+
+        if (strcmp($1, "var") == 0) {
+            add_symbol($2, $4.type);
+        } else {
+            if (strcmp($4.type, "unknown") != 0 && !is_type_compatible($1, $4.type)) {
+                char err[256];
+                snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'", 
+                        get_type_name($4.type), get_type_name($1));
+                yyerror(err);
+            }
+            add_symbol($2, $1);
         }
-        add_symbol($2, $1);
+
         free($2);
         free($1);
         free($4.type);
@@ -536,16 +564,6 @@ expression:
     {
         $$.type = strdup("int");
     }
-    | IDENTIFIER
-    {
-        Symbol* sym = find_symbol($1);
-        if (!sym) {
-            $$.type = strdup("unknown");
-        } else {
-            $$.type = strdup(sym->type);
-        }
-        free($1);
-    }
     | TRUE
     {
         $$.type = strdup("bool");
@@ -557,6 +575,36 @@ expression:
     | NULL_
     {
         $$.type = strdup("null");
+    }
+    | IDENTIFIER
+    {
+        Symbol* sym = find_symbol($1);
+        if (!sym) {
+            $$.type = strdup("unknown");
+        } else {
+            $$.type = strdup(sym->type);
+        }
+        free($1);
+    }
+    | IDENTIFIER '(' ')'
+    {
+        $$.type = strdup("unknown");
+        free($1);
+    }
+    | IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($1);
+    }
+    | AWAIT expression
+    {
+        $$.type = strdup($2.type);
+        free($2.type);
+    }
+    | '(' expression ')'
+    {
+        $$.type = strdup($2.type);
+        free($2.type);
     }
     | expression '+' expression
     {
@@ -583,11 +631,6 @@ expression:
         }
         free($1.type);
         free($3.type);
-    }
-    | '(' expression ')'
-    {
-        $$.type = strdup($2.type);
-        free($2.type);
     }
     | '-' expression %prec UMINUS
     {
@@ -621,6 +664,16 @@ expression:
         $$.type = strdup("bool");
         free($2.type);
     }
+    | expression '|' expression
+    {
+        if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
+            $$.type = strdup("int");
+        } else {
+            $$.type = strdup("unknown");
+        }
+        free($1.type);
+        free($3.type);
+    }
     | expression '.' IDENTIFIER
     {
         $$.type = strdup("unknown");
@@ -642,10 +695,40 @@ expression:
         free($3);
         free($5);
     }
-    | AWAIT expression
+    | expression '.' IDENTIFIER '<' type_list '>' '(' ')'
     {
-        $$.type = strdup($2.type);
-        free($2.type);
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '.' IDENTIFIER '<' type_list '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '?' '.' IDENTIFIER
+    {
+        $$.type = strdup("unknown");
+        free($4);
+    }
+    | expression '?' '.' IDENTIFIER '(' ')'
+    {
+        $$.type = strdup("unknown");
+        free($4);
+    }
+    | expression '?' '.' IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($4);
+    }
+    | expression '?' '.' IDENTIFIER '<' type_list '>' '(' ')'
+    {
+        $$.type = strdup("unknown");
+        free($4);
+    }
+    | expression '?' '.' IDENTIFIER '<' type_list '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($4);
     }
     | NEW qualified_identifier '(' argument_list ')'
     {
@@ -662,36 +745,6 @@ expression:
         $$.type = strdup($1.type);
         free($1.type);
         free($3.type);
-    }
-    | expression '|' expression
-    {
-        if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
-            $$.type = strdup("int");
-        } else {
-            $$.type = strdup("unknown");
-        }
-        free($1.type);
-        free($3.type);
-    }
-    | expression '.' IDENTIFIER '<' type_list '>' '(' argument_list ')'
-    {
-        $$.type = strdup("unknown");
-        free($3);
-    }
-    | expression '.' IDENTIFIER '<' type_list '>' '(' ')'
-    {
-        $$.type = strdup("unknown");
-        free($3);
-    }
-    | expression '?' '.' IDENTIFIER
-    {
-        $$.type = strdup("unknown");
-        free($4);
-    }
-    | expression '?' '.' IDENTIFIER '(' argument_list ')'
-    {
-        $$.type = strdup("unknown");
-        free($4);
     }
     ;
 

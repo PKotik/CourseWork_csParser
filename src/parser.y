@@ -66,6 +66,11 @@ int is_type_compatible(const char* target, const char* source) {
     return 0;
 }
 
+int is_task_like(const char* type) {
+    if (strcmp(type, "Task") == 0) return 1;
+    return 0;
+}
+
 const char* get_type_name(const char* type) {
     if (strcmp(type, "int") == 0) return "int";
     if (strcmp(type, "string") == 0) return "string";
@@ -238,7 +243,11 @@ method_declaration:
     }
     method_body
     {
-        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0 
+            && !is_task_like(current_method_type)
+            && !current_method_has_return) 
+        {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
             yyerror(err);
@@ -260,7 +269,11 @@ method_declaration:
     }
     method_body
     {
-        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0 
+            && !is_task_like(current_method_type)
+            && !current_method_has_return)
+        {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
             yyerror(err);
@@ -271,51 +284,59 @@ method_declaration:
         current_method_name = NULL;
         current_method_has_return = 0;
     }
-    | modifiers TASK IDENTIFIER '(' parameter_list ')' 
-    {
-        // async Task метод - возвращает void
-        current_method_type = strdup("void");
-        current_method_name = strdup($3);
-        current_method_has_return = 0;
-        printf("  Async Method: %s (return type: void)\n", $3);
-        free($3);
-    }
-    method_body
-    {
-        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
-            char err[256];
-            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-            yyerror(err);
-        }
-        free(current_method_type);
-        free(current_method_name);
-        current_method_type = NULL;
-        current_method_name = NULL;
-        current_method_has_return = 0;
-    }
-    | modifiers TASK '<' type '>' IDENTIFIER '(' parameter_list ')' 
-    {
-        // async Task<T> метод - возвращает T
-        current_method_type = strdup($4);
-        current_method_name = strdup($6);
-        current_method_has_return = 0;
-        printf("  Async Method: %s (return type: %s)\n", $6, $4);
-        free($6);
-        free($4);
-    }
-    method_body
-    {
-        if (current_method_type && strcmp(current_method_type, "void") != 0 && !current_method_has_return) {
-            char err[256];
-            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-            yyerror(err);
-        }
-        free(current_method_type);
-        free(current_method_name);
-        current_method_type = NULL;
-        current_method_name = NULL;
-        current_method_has_return = 0;
-    }
+    // | modifiers TASK IDENTIFIER '(' parameter_list ')' 
+    // {
+    //     // async Task метод - возвращает void
+    //     current_method_type = strdup("void");
+    //     current_method_name = strdup($3);
+    //     current_method_has_return = 0;
+    //     printf("  Async Method: %s (return type: void)\n", $3);
+    //     free($3);
+    // }
+    // method_body
+    // {
+    //     if (current_method_type 
+    //         && strcmp(current_method_type, "void") != 0 
+    //         && !is_task_like(current_method_type)
+    //         && !current_method_has_return)
+    //     {
+    //         char err[256];
+    //         snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+    //         yyerror(err);
+    //     }
+    //     free(current_method_type);
+    //     free(current_method_name);
+    //     current_method_type = NULL;
+    //     current_method_name = NULL;
+    //     current_method_has_return = 0;
+    // }
+    // | modifiers TASK '<' type '>' IDENTIFIER '(' parameter_list ')' 
+    // {
+    //     // async Task<T> метод - возвращает T
+    //     current_method_type = strdup($4);
+    //     current_method_name = strdup($6);
+    //     current_method_has_return = 0;
+    //     printf("  Async Method: %s (return type: %s)\n", $6, $4);
+    //     free($6);
+    //     free($4);
+    // }
+    // method_body
+    // {
+    //     if (current_method_type 
+    //         && strcmp(current_method_type, "void") != 0 
+    //         && !is_task_like(current_method_type)
+    //         && !current_method_has_return)
+    //     {
+    //         char err[256];
+    //         snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+    //         yyerror(err);
+    //     }
+    //     free(current_method_type);
+    //     free(current_method_name);
+    //     current_method_type = NULL;
+    //     current_method_name = NULL;
+    //     current_method_has_return = 0;
+    // }
     ;
 
 property_declaration:
@@ -541,7 +562,10 @@ assignment_statement:
 return_statement:
     RETURN ';'
     {
-        if (current_method_type && strcmp(current_method_type, "void") != 0) {
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0
+            && !is_task_like(current_method_type)) 
+        {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method must return a value");
             yyerror(err);
@@ -565,6 +589,10 @@ return_statement:
         free($2.type);
     }
     ;
+    
+lambda_expression:
+    '(' parameter_list ')' ARROW expression
+    | IDENTIFIER ARROW expression
 
 expression:
     INT_LITERAL
@@ -583,6 +611,7 @@ expression:
     {
         $$.type = strdup("null");
     }
+    | lambda_expression
     | IDENTIFIER
     {
         Symbol* sym = find_symbol($1);
@@ -753,21 +782,21 @@ expression:
         free($1.type);
         free($3.type);
     }
-    | IDENTIFIER ARROW expression
-    {
-        $$.type = strdup("unknown");
-        free($1);
-        free($3.type);
-    }
+    // | IDENTIFIER ARROW expression
+    // {
+    //     $$.type = strdup("unknown");
+    //     free($1);
+    //     free($3.type);
+    // }
     | IDENTIFIER ARROW block
     {
         $$.type = strdup("unknown");
         free($1);
     }
-    | '(' parameter_list ')' ARROW expression
-    {
-        $$.type = strdup("unknown");
-    }
+    // | '(' parameter_list ')' ARROW expression
+    // {
+    //     $$.type = strdup("unknown");
+    // }
     | '(' parameter_list ')' ARROW block
     {
         $$.type = strdup("unknown");
@@ -797,13 +826,39 @@ expression:
         free($1);
         free($3);
     }
+    | STRING
+    {
+        $$.type = strdup("string");
+    }
+    | INT
+    {
+        $$.type = strdup("int");
+    }
+    | BOOL
+    {
+        $$.type = strdup("bool");
+    }
+    | OBJECT
+    {
+        $$.type = strdup("object");
+    }
     ;
 
 argument_list:
     /* empty */
-    | expression
-    | argument_list ',' expression
-    ;
+    | argument
+    | argument_list ',' argument
+;
+
+argument:
+    expression
+    | IDENTIFIER ':' expression
+    {
+        // named argument
+        free($1);
+        free($3.type);
+    }
+;
 
 %%
 

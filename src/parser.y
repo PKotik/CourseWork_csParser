@@ -107,6 +107,7 @@ const char* get_type_name(const char* type) {
 
 %type <expr> expression
 %type <string> type
+%type <expr> lambda_expression
 
 %left AND_AND OR_OR
 %left '<' '>' LE GE EQ_EQ NE
@@ -592,7 +593,16 @@ return_statement:
     
 lambda_expression:
     '(' parameter_list ')' ARROW expression
+    {
+        $$.type = strdup("lambda");
+        free($5.type);
+    }
     | IDENTIFIER ARROW expression
+    {
+        $$.type = strdup("lambda");
+        free($1);
+        free($3.type);
+    }
 
 expression:
     INT_LITERAL
@@ -611,7 +621,22 @@ expression:
     {
         $$.type = strdup("null");
     }
-    | lambda_expression
+    | STRING
+    {
+        $$.type = strdup("string");
+    }
+    | INT
+    {
+        $$.type = strdup("int");
+    }
+    | BOOL
+    {
+        $$.type = strdup("bool");
+    }
+    | OBJECT
+    {
+        $$.type = strdup("object");
+    }
     | IDENTIFIER
     {
         Symbol* sym = find_symbol($1);
@@ -621,6 +646,10 @@ expression:
             $$.type = strdup(sym->type);
         }
         free($1);
+    }
+    | lambda_expression
+    {
+        $$.type = strdup("lambda");
     }
     | IDENTIFIER '(' ')'
     {
@@ -656,8 +685,35 @@ expression:
         free($3.type);
     }
     | expression '-' expression
+    {
+        if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
+            $$.type = strdup("int");
+        } else {
+            $$.type = strdup("unknown");
+        }
+        free($1.type);
+        free($3.type);
+    }
     | expression '*' expression
+    {
+        if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
+            $$.type = strdup("int");
+        } else {
+            $$.type = strdup("unknown");
+        }
+        free($1.type);
+        free($3.type);
+    }
     | expression '/' expression
+    {
+        if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
+            $$.type = strdup("int");
+        } else {
+            $$.type = strdup("unknown");
+        }
+        free($1.type);
+        free($3.type);
+    }
     | expression '%' expression
     {
         if (strcmp($1.type, "int") == 0 && strcmp($3.type, "int") == 0) {
@@ -678,10 +734,35 @@ expression:
         free($2.type);
     }
     | expression '<' expression
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3.type);
+    }
     | expression '>' expression
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3.type);
+    }
     | expression LE expression
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3.type);
+    }
     | expression GE expression
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3.type);
+    }
     | expression EQ_EQ expression
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3.type);
+    }
     | expression NE expression
     {
         $$.type = strdup("bool");
@@ -689,6 +770,11 @@ expression:
         free($3.type);
     }
     | expression AND_AND expression
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3.type);
+    }
     | expression OR_OR expression
     {
         $$.type = strdup("bool");
@@ -729,7 +815,7 @@ expression:
     {
         $$.type = strdup("unknown");
         free($3);
-        free($5);
+        // НЕ free($5) - это type, его освободит родитель
     }
     | expression '.' IDENTIFIER '<' type_list '>' '(' ')'
     {
@@ -782,21 +868,11 @@ expression:
         free($1.type);
         free($3.type);
     }
-    // | IDENTIFIER ARROW expression
-    // {
-    //     $$.type = strdup("unknown");
-    //     free($1);
-    //     free($3.type);
-    // }
     | IDENTIFIER ARROW block
     {
         $$.type = strdup("unknown");
         free($1);
     }
-    // | '(' parameter_list ')' ARROW expression
-    // {
-    //     $$.type = strdup("unknown");
-    // }
     | '(' parameter_list ')' ARROW block
     {
         $$.type = strdup("unknown");
@@ -820,28 +896,6 @@ expression:
     {
         $$.type = strdup("unknown");
     }
-    | IDENTIFIER '(' IDENTIFIER ')'
-    {
-        $$.type = strdup("unknown");
-        free($1);
-        free($3);
-    }
-    | STRING
-    {
-        $$.type = strdup("string");
-    }
-    | INT
-    {
-        $$.type = strdup("int");
-    }
-    | BOOL
-    {
-        $$.type = strdup("bool");
-    }
-    | OBJECT
-    {
-        $$.type = strdup("object");
-    }
     ;
 
 argument_list:
@@ -852,6 +906,7 @@ argument_list:
 
 argument:
     expression
+    | lambda_expression
     | IDENTIFIER ':' expression
     {
         // named argument

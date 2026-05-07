@@ -64,9 +64,20 @@ int is_task_generic(const char* type) {
     return strncmp(type, "Task<", 5) == 0;
 }
 
+int is_collection_type(const char* type) {
+    return strstr(type, "Dictionary<") == type ||
+           strstr(type, "List<") == type ||
+           strstr(type, "IEnumerable<") == type;
+}
+
 int is_type_compatible(const char* target, const char* source) {
     if (strcmp(target, source) == 0) return 1;
+
+    if (strcmp(source, "collection") == 0 && is_collection_type(target))
+        return 1;
+
     if (strcmp(target, "bool") == 0 && strcmp(source, "int") == 0) return 1;
+
     return 0;
 }
 
@@ -124,6 +135,8 @@ const char* get_type_name(const char* type) {
 %token EQ_EQ NE LE GE AND_AND OR_OR ARROW NULL_COALESCE_ASSIGN NULL_COALESCE
 %token ERROR
 %token TASK
+
+%token IN
 
 %type <expr> expression
 %type <string> type
@@ -539,6 +552,19 @@ statement:
             yyerror(err);
         }
         free($3.type);
+    }
+    | FOREACH '(' type IDENTIFIER IN expression ')' statement
+    {
+        add_symbol($4, $3);
+        free($4);
+        free($3);
+        // Проверка, что $6.type - коллекция
+        if (strcmp($6.type, "collection") != 0 && strcmp($6.type, "unknown") != 0) {
+            char err[256];
+            snprintf(err, sizeof(err), "Expected collection type after 'in', got '%s'", $6.type);
+            yyerror(err);
+        }
+        free($6.type);
     }
     | declaration_statement
     | assignment_statement
@@ -963,24 +989,70 @@ expression:
         $$.type = strdup($1.type);
         free($1.type);
     }
+    | '[' argument_list ']'
+    {
+        $$.type = strdup("collection");
+    }
+    | '[' ']'
+    {
+        $$.type = strdup("collection");
+    }
+    | expression '[' argument_list ']'
+    {
+        $$.type = strdup("unknown");
+        free($1.type);
+    }
+    | expression '[' ']'
+    {
+        $$.type = strdup("unknown");
+        free($1.type);
+    }
+    | expression '.' IDENTIFIER '(' method_arguments ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    ;
+
+method_arguments:
+    /* empty */
+    | method_argument
+    | method_arguments ',' method_argument
+    ;
+
+method_argument:
+    expression
+    | lambda_expression
+    | IDENTIFIER ':' expression
+    {
+        free($1);
+        free($3.type);
+    }
+    | IDENTIFIER ':' lambda_expression
+    {
+        free($1);
+    }
     ;
 
 argument_list:
     /* empty */
     | argument
     | argument_list ',' argument
-;
+    ;
 
 argument:
     expression
     | lambda_expression
     | IDENTIFIER ':' expression
     {
-        // named argument
         free($1);
         free($3.type);
     }
-;
+    | IDENTIFIER ':' lambda_expression
+    {
+        free($1);
+    }
+    ;
 
 %%
 

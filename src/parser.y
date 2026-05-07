@@ -60,10 +60,30 @@ void clear_symbols() {
     }
 }
 
+int is_task_generic(const char* type) {
+    return strncmp(type, "Task<", 5) == 0;
+}
+
 int is_type_compatible(const char* target, const char* source) {
     if (strcmp(target, source) == 0) return 1;
     if (strcmp(target, "bool") == 0 && strcmp(source, "int") == 0) return 1;
     return 0;
+}
+
+char* extract_task_inner_type(const char* type) {
+    if (strncmp(type, "Task<", 5) != 0) return NULL;
+
+    const char* start = type + 5;
+    const char* end = strrchr(type, '>');
+
+    if (!end || end <= start) return NULL;
+
+    int len = end - start;
+    char* result = malloc(len + 1);
+    strncpy(result, start, len);
+    result[len] = '\0';
+
+    return result;
 }
 
 int is_task_like(const char* type) {
@@ -108,6 +128,7 @@ const char* get_type_name(const char* type) {
 %type <expr> expression
 %type <string> type
 %type <expr> lambda_expression
+%type <string> type_list
 
 %left AND_AND OR_OR
 %left '<' '>' LE GE EQ_EQ NE
@@ -424,12 +445,29 @@ type:
         $$ = nullable;
         free($1);
     }
+    | IDENTIFIER '<' type_list '>'
+    {
+        char* tmp = malloc(strlen($1) + strlen($3) + 3);
+        sprintf(tmp, "%s<%s>", $1, $3);
+        free($1);
+        free($3);
+        $$ = tmp;
+    }
     ;
 
 type_list:
     type
+    {
+        $$ = $1;
+    }
     | type_list ',' type
-    ;
+    {
+        char* tmp = malloc(strlen($1) + strlen($3) + 2);
+        sprintf(tmp, "%s,%s", $1, $3);
+        free($1);
+        free($3);
+        $$ = tmp;
+    }
 
 parameter_list:
     /* empty */
@@ -575,17 +613,41 @@ return_statement:
     }
     | RETURN expression ';'
     {
-        if (current_method_type && strcmp(current_method_type, "void") == 0) {
-            char err[256];
-            snprintf(err, sizeof(err), "Void method cannot return a value (got '%s')", 
-                     get_type_name($2.type));
-            yyerror(err);
-        } else if (current_method_type && strcmp($2.type, "unknown") != 0 && !is_type_compatible(current_method_type, $2.type)) {
-            char err[256];
-            snprintf(err, sizeof(err), "Return type mismatch: expected '%s', got '%s'",
-                     get_type_name(current_method_type), get_type_name($2.type));
-            yyerror(err);
+        if (current_method_type) {
+            if (strcmp(current_method_type, "void") == 0) {
+                yyerror("Void method cannot return a value");
+            }
+            else if (is_task_generic(current_method_type)) {
+                char* inner = extract_task_inner_type(current_method_type);
+
+                if (inner && strcmp($2.type, "unknown") != 0 &&
+                    !is_type_compatible(inner, $2.type)) {
+                    
+                    char err[256];
+                    snprintf(err, sizeof(err),
+                        "Return type mismatch: expected '%s', got '%s'",
+                        inner, $2.type);
+                    yyerror(err);
+                }
+
+                if (inner) free(inner);
+            }
+            else if (strcmp(current_method_type, "Task") == 0) {
+                // НИЧЕГО НЕ ДЕЛАЕМ (разрешаем всё)
+            }
+            else {
+                if (strcmp($2.type, "unknown") != 0 &&
+                    !is_type_compatible(current_method_type, $2.type)) {
+                    
+                    char err[256];
+                    snprintf(err, sizeof(err),
+                        "Return type mismatch: expected '%s', got '%s'",
+                        current_method_type, $2.type);
+                    yyerror(err);
+                }
+            }
         }
+
         current_method_has_return = 1;
         free($2.type);
     }
@@ -895,6 +957,11 @@ expression:
     | ASYNC '(' parameter_list ')' ARROW block
     {
         $$.type = strdup("unknown");
+    }
+    | expression '!'
+    {
+        $$.type = strdup($1.type);
+        free($1.type);
     }
     ;
 

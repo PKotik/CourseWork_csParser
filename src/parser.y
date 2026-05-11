@@ -137,6 +137,7 @@ const char* get_type_name(const char* type) {
 %token TASK
 
 %token IN
+%token TYPEOF
 
 %type <expr> expression
 %type <string> type
@@ -144,6 +145,7 @@ const char* get_type_name(const char* type) {
 %type <string> type_list
 
 %left AND_AND OR_OR
+%right ARROW
 %left '<' '>' LE GE EQ_EQ NE
 %right '!'
 %left '+' '-'
@@ -169,7 +171,7 @@ program:
 using_directive:
     USING qualified_identifier ';'
     {
-        printf("Using directive\n");
+        // printf("Using directive\n");
     }
     | USING IDENTIFIER '=' qualified_identifier ';'
     {
@@ -558,7 +560,6 @@ statement:
         add_symbol($4, $3);
         free($4);
         free($3);
-        // Проверка, что $6.type - коллекция
         if (strcmp($6.type, "collection") != 0 && strcmp($6.type, "unknown") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Expected collection type after 'in', got '%s'", $6.type);
@@ -578,14 +579,14 @@ statement:
 declaration_statement:
     type IDENTIFIER ';'
     {
-        printf("DEBUG: declaration_statement (no init)\n");
+        // printf("DEBUG: declaration_statement (no init)\n");
         add_symbol($2, $1);
         free($2);
         free($1);
     }
     | type IDENTIFIER '=' expression ';'
     {
-        printf("DEBUG: declaration_statement with init, type=%s, var=%s, expr_type=%s\n", $1, $2, $4.type);
+        // printf("DEBUG: declaration_statement with init, type=%s, var=%s, expr_type=%s\n", $1, $2, $4.type);
 
         if (strcmp($1, "var") == 0) {
             add_symbol($2, $4.type);
@@ -682,18 +683,29 @@ return_statement:
 lambda_expression:
     '(' parameter_list ')' ARROW expression
     {
+        // printf("DEBUG: lambda_expression with parens\n");
         $$.type = strdup("lambda");
         free($5.type);
     }
     | IDENTIFIER ARROW expression
     {
+        // printf("DEBUG: lambda_expression simple: %s => ...\n", $1);
         $$.type = strdup("lambda");
         free($1);
         free($3.type);
     }
 
 expression:
-    INT_LITERAL
+    lambda_expression
+    {
+        $$.type = strdup("lambda");
+    }
+    | expression '.' IDENTIFIER '(' method_arguments ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | INT_LITERAL
     {
         $$.type = strdup("int");
     }
@@ -734,10 +746,6 @@ expression:
             $$.type = strdup(sym->type);
         }
         free($1);
-    }
-    | lambda_expression
-    {
-        $$.type = strdup("lambda");
     }
     | IDENTIFIER '(' ')'
     {
@@ -944,6 +952,46 @@ expression:
     {
         $$.type = strdup("unknown");
     }
+    | NEW qualified_identifier '(' ')' 
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '<' type '>' '(' ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '<' type '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW type '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW type '[' ']' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '<' type '>' '(' ')' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '(' ')' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '<' type '>' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | TYPEOF '(' qualified_identifier ')'
+    {
+        $$.type = strdup("type");
+    }
     | expression NULL_COALESCE expression
     {
         $$.type = strdup($1.type);
@@ -1043,6 +1091,9 @@ argument_list:
 argument:
     expression
     | lambda_expression
+    {
+        // printf("DEBUG: argument with lambda_expression\n");
+    }
     | IDENTIFIER ':' expression
     {
         free($1);

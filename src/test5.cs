@@ -7,7 +7,7 @@ public class TestClass
     void TestMethod()
     {
         var list = new List<int> { 1, 2, 3, 4, 5 };
-        foreach (var num in list)
+        foreach (int num in list)
         {
             Console.WriteLine(num);
         }

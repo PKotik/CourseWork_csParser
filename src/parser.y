@@ -14,6 +14,8 @@ int yylex(void);
 
 int has_errors = 0;
 
+int loop_depth = 0;
+
 typedef struct Symbol {
     char* name;
     char* type;
@@ -518,6 +520,32 @@ block:
     '{' statements '}'
     ;
 
+switch_labels:
+    switch_label
+    | switch_labels switch_label
+;
+
+switch_label:
+    CASE expression ':'
+    {
+        free($2.type);
+    }
+    | DEFAULT ':'
+;
+
+switch_sections:
+    /* empty */
+    | switch_sections switch_section
+;
+
+switch_section:
+    switch_labels statements
+;
+
+switch_block:
+    '{' switch_sections '}'
+    ;
+
 statements:
     /* empty */
     | statements statement
@@ -545,8 +573,13 @@ statement:
         }
         free($3.type);
     }
-    | WHILE '(' expression ')' statement
+    | WHILE '(' expression ')'
     {
+        loop_depth++;
+    } 
+    statement
+    {
+        loop_depth--;
         if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
@@ -555,9 +588,14 @@ statement:
         }
         free($3.type);
     }
-    | FOREACH '(' type IDENTIFIER IN expression ')' statement
+    | FOREACH '(' type IDENTIFIER IN expression')'
     {
-        printf("DEBUG FOREACH: next token type after in is: %s\n", $6.type);
+        loop_depth++;
+    } 
+    statement
+    {
+        loop_depth--;
+        // printf("DEBUG FOREACH: next token type after in is: %s\n", $6.type);
         add_symbol($4, $3);
         free($4);
         free($3);
@@ -574,6 +612,26 @@ statement:
     | expression ';'
     {
         free($1.type);
+    }
+    | CONTINUE ';'
+    {
+        if (loop_depth == 0) {
+            yyerror("continue statement not within a loop");
+        }
+    }
+    | BREAK ';'
+    {
+        if (loop_depth == 0) {
+            yyerror("break statement not within a loop");
+        }
+    }
+    | SWITCH '(' expression ')' switch_block
+    {
+        free($3.type);
+    }
+    | THROW expression ';'
+    {
+        free($2.type);
     }
     ;
 

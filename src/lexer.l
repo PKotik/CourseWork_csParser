@@ -116,11 +116,12 @@ void print_semantic_error(const char* msg) {
 "while"         { update_position(yytext, yyleng); return WHILE; }
 "partial"       { update_position(yytext, yyleng); return PARTIAL; }
 "typeof"        { update_position(yytext, yyleng); return TYPEOF; }
+"in"            { update_position(yytext, yyleng); return IN; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
     yylval.string = strdup(yytext);
-    printf("LEXER: identifier '%s'\n", yytext);
+    // printf("LEXER: identifier '%s'\n", yytext);
     return IDENTIFIER;
 }
 

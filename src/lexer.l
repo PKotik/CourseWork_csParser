@@ -120,6 +120,7 @@ void print_semantic_error(const char* msg) {
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
     yylval.string = strdup(yytext);
+    printf("LEXER: identifier '%s'\n", yytext);
     return IDENTIFIER;
 }
 

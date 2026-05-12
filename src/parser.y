@@ -557,6 +557,7 @@ statement:
     }
     | FOREACH '(' type IDENTIFIER IN expression ')' statement
     {
+        printf("DEBUG FOREACH: next token type after in is: %s\n", $6.type);
         add_symbol($4, $3);
         free($4);
         free($3);

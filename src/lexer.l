@@ -81,6 +81,7 @@ void print_semantic_error(const char* msg) {
 "case"          { update_position(yytext, yyleng); return CASE; }
 "catch"         { update_position(yytext, yyleng); return CATCH; }
 "class"         { update_position(yytext, yyleng); return CLASS; }
+"const"         { update_position(yytext, yyleng); return CONST; }
 "continue"      { update_position(yytext, yyleng); return CONTINUE; }
 "default"       { update_position(yytext, yyleng); return DEFAULT; }
 "else"          { update_position(yytext, yyleng); return ELSE; }
@@ -117,6 +118,15 @@ void print_semantic_error(const char* msg) {
 "partial"       { update_position(yytext, yyleng); return PARTIAL; }
 "typeof"        { update_position(yytext, yyleng); return TYPEOF; }
 "in"            { update_position(yytext, yyleng); return IN; }
+"record"        { update_position(yytext, yyleng); return RECORD; }
+"where"         { update_position(yytext, yyleng); return WHERE; }
+"struct"        { update_position(yytext, yyleng); return STRUCT; }
+"notnull"       { update_position(yytext, yyleng); return NOTNULL; }
+"unmanaged"     { update_position(yytext, yyleng); return UNMANAGED; }
+"readonly"      { update_position(yytext, yyleng); return READONLY; }
+"base"          { update_position(yytext, yyleng); return BASE; }
+"this"          { update_position(yytext, yyleng); return THIS; }
+"is"            { update_position(yytext, yyleng); return IS; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
@@ -129,6 +139,24 @@ void print_semantic_error(const char* msg) {
     update_position(yytext, yyleng);
     yylval.num = atoi(yytext);
     return INT_LITERAL;
+}
+
+\"([^\\\"]|\\.)*\"  {
+    update_position(yytext, yyleng);
+    yylval.string = strdup(yytext);
+    return STRING_LITERAL;
+}
+
+@\"([^\"])*\" {
+    update_position(yytext, yyleng);
+    yylval.string = strdup(yytext);
+    return STRING_LITERAL;
+}
+
+"$\""([^\\\"]|\\.)*\"  {
+    update_position(yytext, yyleng);
+    yylval.string = strdup(yytext);
+    return STRING_LITERAL;
 }
 
 "{"             { update_position(yytext, yyleng); return '{'; }

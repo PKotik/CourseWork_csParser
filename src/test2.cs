@@ -14,7 +14,7 @@ public class MyClass {
         }
     }
 
-    void Method2() {
+    public void Method2() {
         int x = 0;
         while (x <= 10) {
             x = x + 1;
@@ -22,11 +22,11 @@ public class MyClass {
         return;
     }
 
-    void Method3() {
+    public void Method3() {
         return;
     }
 
-    int Method4() {
+    private int Method4() {
         return 3;
     }
 }

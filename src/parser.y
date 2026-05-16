@@ -130,7 +130,7 @@ const char* get_type_name(const char* type) {
 %token ABSTRACT ASYNC AWAIT BOOL BREAK CASE CATCH CLASS CONTINUE DEFAULT
 %token ELSE FALSE FINALLY FOR FOREACH GET IF INT INTERNAL NAMESPACE NEW
 %token NULL_ OBJECT OVERRIDE PRIVATE PROTECTED PUBLIC RETURN SEALED SET
-%token STATIC STRING SWITCH THROW TRUE TRY USING VAR VIRTUAL VOID WHILE
+%token STATIC READONLY STRING SWITCH THROW TRUE TRY USING VAR VIRTUAL VOID WHILE
 %token PARTIAL
 
 // Операторы
@@ -140,11 +140,18 @@ const char* get_type_name(const char* type) {
 
 %token IN
 %token TYPEOF
+%token CONST
+%token <string> STRING_LITERAL
+%token RECORD
+%token WHERE STRUCT NOTNULL UNMANAGED
+%token BASE THIS
+%token IS
 
 %type <expr> expression
 %type <string> type
 %type <expr> lambda_expression
 %type <string> type_list
+%type <string> qualified_identifier
 
 %left AND_AND OR_OR
 %right ARROW
@@ -160,14 +167,29 @@ const char* get_type_name(const char* type) {
 
 qualified_identifier:
     IDENTIFIER
+    {
+        $$ = $1;
+    }
     | qualified_identifier '.' IDENTIFIER
+    {
+        char* result = malloc(strlen($1) + strlen($3) + 2);
+        sprintf(result, "%s.%s", $1, $3);
+        free($1);
+        free($3);
+        $$ = result;
+    }
+    ;
+
+top_level_statement:
+    statement
     ;
 
 program:
     /* empty */
     | program using_directive
     | program namespace_declaration
-    | program class_declaration
+    | program type_declaration
+    | program top_level_statement
     ;
 
 using_directive:
@@ -201,6 +223,34 @@ file_scoped_namespace:
     }
     ;
 
+type_declaration:
+    class_declaration
+    | record_declaration
+    ;
+
+record_declaration:
+    class_modifiers RECORD IDENTIFIER record_primary_constructor class_inheritance class_body
+    {
+        printf("Valid record: %s\n", $3);
+        free($3);
+        clear_symbols();
+    }
+    | class_modifiers RECORD IDENTIFIER record_primary_constructor class_inheritance ';'
+    {
+        printf("Valid positional record: %s\n", $3);
+        free($3);
+        clear_symbols();
+    }
+    ;
+
+record_primary_constructor:
+    /* empty */
+    | '(' parameter_list ')'
+    {
+        printf("  Record primary constructor\n");
+    }
+    ;
+
 class_declaration:
     class_modifiers CLASS IDENTIFIER class_primary_constructor class_inheritance class_body
     {
@@ -208,6 +258,43 @@ class_declaration:
         free($3);
         clear_symbols();
     }
+    | class_modifiers CLASS IDENTIFIER type_parameter_list class_primary_constructor class_inheritance class_body
+    {
+        printf("Valid generic class: %s\n", $3);
+        free($3);
+        clear_symbols();
+    }
+    | class_modifiers CLASS IDENTIFIER type_parameter_list class_primary_constructor class_inheritance type_parameter_constraints_clause class_body
+    {
+        printf("Valid generic class with constraints: %s\n", $3);
+        free($3);
+        clear_symbols();
+    }
+    ;
+
+type_parameter_list:
+    '<' type_parameters '>'
+    ;
+
+type_parameters:
+    IDENTIFIER
+    | type_parameters ',' IDENTIFIER
+    ;
+
+type_parameter_constraints_clause:
+    /* empty */
+    | type_parameter_constraints_clause WHERE IDENTIFIER ':' constraint
+    ;
+
+constraint:
+    IDENTIFIER
+    | IDENTIFIER '?'
+    | CLASS
+    | STRUCT
+    | NOTNULL
+    | UNMANAGED
+    | NEW '(' ')'
+    | constraint ',' IDENTIFIER
     ;
 
 class_primary_constructor:
@@ -247,10 +334,111 @@ class_members:
     | class_members class_member
     ;
 
+const_declaration:
+    modifiers CONST type IDENTIFIER '=' expression ';'
+    {
+        printf("  Constant: %s (type: %s)\n", $4, $3);
+        add_symbol($4, $3);
+        free($4);
+        free($3);
+        free($6.type);
+    }
+    ;
+
 class_member:
     field_declaration
     | method_declaration
+    | explicit_method_declaration
+    | expression_method_declaration
     | property_declaration
+    | const_declaration
+    | constructor_declaration
+    ;
+
+explicit_method_declaration:
+    modifiers type qualified_identifier '(' parameter_list ')' method_body
+    {
+        current_method_type = strdup($2);
+        current_method_name = strdup($3);
+        current_method_has_return = 0;
+        printf("  Explicit interface method: %s (return type: %s)\n", $3, $2);
+        free($3);
+        free($2);
+    }
+    method_body
+    {
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0 
+            && !is_task_like(current_method_type)
+            && !current_method_has_return) 
+        {
+            char err[256];
+            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            yyerror(err);
+        }
+        free(current_method_type);
+        free(current_method_name);
+        current_method_type = NULL;
+        current_method_name = NULL;
+        current_method_has_return = 0;
+    }
+    | type qualified_identifier '(' parameter_list ')' method_body
+    {
+        current_method_type = strdup($1);
+        current_method_name = strdup($2);
+        current_method_has_return = 0;
+        printf("  Explicit interface method (no modifiers): %s (return type: %s)\n", $2, $1);
+        free($2);
+        free($1);
+    }
+    method_body
+    {
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0 
+            && !is_task_like(current_method_type)
+            && !current_method_has_return) 
+        {
+            char err[256];
+            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
+            yyerror(err);
+        }
+        free(current_method_type);
+        free(current_method_name);
+        current_method_type = NULL;
+        current_method_name = NULL;
+        current_method_has_return = 0;
+    }
+    ;
+
+expression_method_declaration:
+    modifiers type IDENTIFIER '(' parameter_list ')' ARROW expression ';'
+    {
+        printf("  Expression-bodied method: %s (return type: %s)\n", $3, $2);
+        free($3);
+        free($2);
+        free($8.type);
+    }
+    | type IDENTIFIER '(' parameter_list ')' ARROW expression ';'
+    {
+        printf("  Expression-bodied method: %s (return type: %s)\n", $2, $1);
+        free($2);
+        free($1);
+        free($7.type);
+    }
+    ;
+
+constructor_declaration:
+    modifiers IDENTIFIER '(' parameter_list ')' constructor_initializer block
+    {
+        printf("  Constructor: %s\n", $2);
+        free($2);
+    }
+    ;
+
+constructor_initializer:
+    /* empty */
+    | ':' BASE '(' argument_list ')'
+    | ':' THIS '(' argument_list ')'
     ;
 
 field_declaration:
@@ -267,6 +455,22 @@ field_declaration:
         add_symbol($3, $2);
         free($3);
         free($2);
+    }
+    | type IDENTIFIER '=' expression ';'
+    {
+        printf("  Field with init: %s\n", $2);
+        add_symbol($2, $1);
+        free($2);
+        free($1);
+        free($4.type);
+    }
+    | modifiers type IDENTIFIER '=' expression ';'
+    {
+        printf("  Field with init: %s\n", $3);
+        add_symbol($3, $2);
+        free($3);
+        free($2);
+        free($5.type);
     }
     ;
 
@@ -323,59 +527,6 @@ method_declaration:
         current_method_name = NULL;
         current_method_has_return = 0;
     }
-    // | modifiers TASK IDENTIFIER '(' parameter_list ')' 
-    // {
-    //     // async Task метод - возвращает void
-    //     current_method_type = strdup("void");
-    //     current_method_name = strdup($3);
-    //     current_method_has_return = 0;
-    //     printf("  Async Method: %s (return type: void)\n", $3);
-    //     free($3);
-    // }
-    // method_body
-    // {
-    //     if (current_method_type 
-    //         && strcmp(current_method_type, "void") != 0 
-    //         && !is_task_like(current_method_type)
-    //         && !current_method_has_return)
-    //     {
-    //         char err[256];
-    //         snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-    //         yyerror(err);
-    //     }
-    //     free(current_method_type);
-    //     free(current_method_name);
-    //     current_method_type = NULL;
-    //     current_method_name = NULL;
-    //     current_method_has_return = 0;
-    // }
-    // | modifiers TASK '<' type '>' IDENTIFIER '(' parameter_list ')' 
-    // {
-    //     // async Task<T> метод - возвращает T
-    //     current_method_type = strdup($4);
-    //     current_method_name = strdup($6);
-    //     current_method_has_return = 0;
-    //     printf("  Async Method: %s (return type: %s)\n", $6, $4);
-    //     free($6);
-    //     free($4);
-    // }
-    // method_body
-    // {
-    //     if (current_method_type 
-    //         && strcmp(current_method_type, "void") != 0 
-    //         && !is_task_like(current_method_type)
-    //         && !current_method_has_return)
-    //     {
-    //         char err[256];
-    //         snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-    //         yyerror(err);
-    //     }
-    //     free(current_method_type);
-    //     free(current_method_name);
-    //     current_method_type = NULL;
-    //     current_method_name = NULL;
-    //     current_method_has_return = 0;
-    // }
     ;
 
 property_declaration:
@@ -391,6 +542,13 @@ property_declaration:
         printf("  Property: %s (type: %s)\n", $3, $2);
         free($3);
         free($2);
+    }
+    | type IDENTIFIER ARROW expression ';'
+    {
+        printf("  Expression-bodied property: %s (type: %s)\n", $2, $1);
+        free($2);
+        free($1);
+        free($4.type);
     }
     ;
 
@@ -418,6 +576,7 @@ modifiers:
     | modifiers PROTECTED
     | modifiers INTERNAL
     | modifiers STATIC
+    | modifiers READONLY
     | modifiers OVERRIDE
     | modifiers VIRTUAL
     | modifiers ABSTRACT
@@ -1007,6 +1166,16 @@ expression:
         $$.type = strdup("unknown");
         free($4);
     }
+    | NEW IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
+    | NEW IDENTIFIER '(' ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
     | NEW qualified_identifier '(' argument_list ')'
     {
         $$.type = strdup("unknown");
@@ -1117,6 +1286,23 @@ expression:
     | expression '.' IDENTIFIER '(' method_arguments ')'
     {
         $$.type = strdup("unknown");
+        free($3);
+    }
+    | STRING_LITERAL
+    {
+        $$.type = strdup("string");
+    }
+    | expression IS type IDENTIFIER
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+        free($3);
+        free($4);
+    }
+    | expression IS type
+    {
+        $$.type = strdup("bool");
+        free($1.type);
         free($3);
     }
     ;

@@ -127,6 +127,7 @@ void print_semantic_error(const char* msg) {
 "base"          { update_position(yytext, yyleng); return BASE; }
 "this"          { update_position(yytext, yyleng); return THIS; }
 "is"            { update_position(yytext, yyleng); return IS; }
+"out"           { update_position(yytext, yyleng); return OUT; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);

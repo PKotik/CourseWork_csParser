@@ -146,6 +146,7 @@ const char* get_type_name(const char* type) {
 %token WHERE STRUCT NOTNULL UNMANAGED
 %token BASE THIS
 %token IS
+%token OUT
 
 %type <expr> expression
 %type <string> type
@@ -155,6 +156,7 @@ const char* get_type_name(const char* type) {
 
 %left AND_AND OR_OR
 %right ARROW
+%right '?' ':'
 %left '<' '>' LE GE EQ_EQ NE
 %right '!'
 %left '+' '-'
@@ -394,6 +396,20 @@ explicit_method_declaration:
         current_method_type = NULL;
         current_method_name = NULL;
         current_method_has_return = 0;
+    }
+    | modifiers type qualified_identifier '(' parameter_list ')' ARROW expression ';'
+    {
+        printf("  Expression-bodied explicit interface method: %s (return type: %s)\n", $3, $2);
+        free($3);
+        free($2);
+        free($8.type);
+    }
+    | type qualified_identifier '(' parameter_list ')' ARROW expression ';'
+    {
+        printf("  Expression-bodied explicit interface method: %s (return type: %s)\n", $2, $1);
+        free($2);
+        free($1);
+        free($7.type);
     }
     ;
 
@@ -652,6 +668,14 @@ parameter:
         printf("    Parameter: %s %s\n", $1, $2);
         free($2);
         free($1);
+    }
+    | type IDENTIFIER '=' expression
+    {
+        add_symbol($2, $1);
+        printf("    Parameter: %s %s = default\n", $1, $2);
+        free($2);
+        free($1);
+        free($4.type);
     }
     | IDENTIFIER
     {
@@ -1304,6 +1328,28 @@ expression:
         $$.type = strdup($2);
         free($2);
         free($4.type);
+    }
+    | DEFAULT
+    {
+        $$.type = strdup("default");
+    }
+    | expression '?' expression ':' expression
+    {
+        $$.type = strdup($3.type);
+        free($1.type);
+        free($3.type);
+        free($5.type);
+    }
+    | OUT VAR IDENTIFIER
+    {
+        $$.type = strdup("outvar");
+        free($3);
+    }
+    | OUT type IDENTIFIER
+    {
+        $$.type = strdup("outtype");
+        free($2);
+        free($3);
     }
     ;
 

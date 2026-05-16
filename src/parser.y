@@ -353,10 +353,21 @@ class_member:
     | property_declaration
     | const_declaration
     | constructor_declaration
+    | explicit_property_declaration
+    ;
+
+explicit_property_declaration:
+    type qualified_identifier ARROW expression ';'
+    {
+        printf("  Explicit interface property: %s (type: %s)\n", $2, $1);
+        free($2);
+        free($1);
+        free($4.type);
+    }
     ;
 
 explicit_method_declaration:
-    modifiers type qualified_identifier '(' parameter_list ')' method_body
+    modifiers type qualified_identifier '(' parameter_list ')' block
     {
         current_method_type = strdup($2);
         current_method_name = strdup($3);
@@ -364,44 +375,20 @@ explicit_method_declaration:
         printf("  Explicit interface method: %s (return type: %s)\n", $3, $2);
         free($3);
         free($2);
-    }
-    method_body
-    {
-        if (current_method_type 
-            && strcmp(current_method_type, "void") != 0 
-            && !is_task_like(current_method_type)
-            && !current_method_has_return) 
-        {
-            char err[256];
-            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-            yyerror(err);
-        }
         free(current_method_type);
         free(current_method_name);
         current_method_type = NULL;
         current_method_name = NULL;
         current_method_has_return = 0;
     }
-    | type qualified_identifier '(' parameter_list ')' method_body
+    | type qualified_identifier '(' parameter_list ')' block
     {
         current_method_type = strdup($1);
         current_method_name = strdup($2);
         current_method_has_return = 0;
-        printf("  Explicit interface method (no modifiers): %s (return type: %s)\n", $2, $1);
+        printf("  Explicit interface method: %s (return type: %s)\n", $2, $1);
         free($2);
         free($1);
-    }
-    method_body
-    {
-        if (current_method_type 
-            && strcmp(current_method_type, "void") != 0 
-            && !is_task_like(current_method_type)
-            && !current_method_has_return) 
-        {
-            char err[256];
-            snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
-            yyerror(err);
-        }
         free(current_method_type);
         free(current_method_name);
         current_method_type = NULL;
@@ -628,6 +615,13 @@ type:
         free($1);
         free($3);
         $$ = tmp;
+    }
+    | type '[' ']'
+    {
+        char* array_type = malloc(strlen($1) + 3);
+        sprintf(array_type, "%s[]", $1);
+        $$ = array_type;
+        free($1);
     }
     ;
 
@@ -1304,6 +1298,12 @@ expression:
         $$.type = strdup("bool");
         free($1.type);
         free($3);
+    }
+    | '(' type ')' expression
+    {
+        $$.type = strdup($2);
+        free($2);
+        free($4.type);
     }
     ;
 

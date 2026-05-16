@@ -76,7 +76,7 @@ int is_type_compatible(const char* target, const char* source) {
     if (strcmp(target, source) == 0) return 1;
     if (strcmp(source, "collection") == 0 && is_collection_type(target)) return 1;
     if (strcmp(target, "bool") == 0 && strcmp(source, "int") == 0) return 1;
-    
+
     // null совместим с любым nullable типом (заканчивается на ?)
     if (strcmp(source, "null") == 0) {
         int len = strlen(target);
@@ -84,7 +84,7 @@ int is_type_compatible(const char* target, const char* source) {
         if (strcmp(target, "string") == 0) return 1; // string - reference type
         if (strcmp(target, "object") == 0) return 1; // object - reference type
     }
-    
+
     return 0;
 }
 
@@ -483,7 +483,7 @@ field_declaration:
     ;
 
 method_declaration:
-    modifiers type IDENTIFIER '(' parameter_list ')' 
+    modifiers type IDENTIFIER '(' parameter_list ')'
     {
         current_method_type = strdup($2);
         current_method_name = strdup($3);
@@ -494,10 +494,10 @@ method_declaration:
     }
     method_body
     {
-        if (current_method_type 
-            && strcmp(current_method_type, "void") != 0 
+        if (current_method_type
+            && strcmp(current_method_type, "void") != 0
             && !is_task_like(current_method_type)
-            && !current_method_has_return) 
+            && !current_method_has_return)
         {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
@@ -509,7 +509,7 @@ method_declaration:
         current_method_name = NULL;
         current_method_has_return = 0;
     }
-    | type IDENTIFIER '(' parameter_list ')' 
+    | type IDENTIFIER '(' parameter_list ')'
     {
         current_method_type = strdup($1);
         current_method_name = strdup($2);
@@ -520,8 +520,8 @@ method_declaration:
     }
     method_body
     {
-        if (current_method_type 
-            && strcmp(current_method_type, "void") != 0 
+        if (current_method_type
+            && strcmp(current_method_type, "void") != 0
             && !is_task_like(current_method_type)
             && !current_method_has_return)
         {
@@ -600,7 +600,7 @@ type:
     | OBJECT { $$ = strdup("object"); }
     | VAR { $$ = strdup("var"); }
     | TASK { $$ = strdup("Task"); }
-    | TASK '<' type '>' { 
+    | TASK '<' type '>' {
         char* task_type = malloc(strlen("Task<") + strlen($3) + 2);
         sprintf(task_type, "Task<%s>", $3);
         $$ = task_type;
@@ -623,7 +623,7 @@ type:
         free($3);
     }
     | IDENTIFIER { $$ = $1; }
-    | type '?' { 
+    | type '?' {
         char* nullable = malloc(strlen($1) + 2);
         sprintf(nullable, "%s?", $1);
         $$ = nullable;
@@ -690,7 +690,7 @@ parameter:
     ;
 
 method_body:
-    ';' 
+    ';'
     {
         // Абстрактный метод
         current_method_has_return = 1;
@@ -737,7 +737,7 @@ statement:
     block
     | IF '(' expression ')' statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 &&
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
@@ -747,7 +747,7 @@ statement:
     }
     | IF '(' expression ')' statement ELSE statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 &&
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
@@ -758,11 +758,11 @@ statement:
     | WHILE '(' expression ')'
     {
         loop_depth++;
-    } 
+    }
     statement
     {
         loop_depth--;
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 &&
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
@@ -773,7 +773,7 @@ statement:
     | FOREACH '(' type IDENTIFIER IN expression')'
     {
         loop_depth++;
-    } 
+    }
     statement
     {
         loop_depth--;
@@ -834,7 +834,7 @@ declaration_statement:
         } else {
             if (strcmp($4.type, "unknown") != 0 && !is_type_compatible($1, $4.type)) {
                 char err[256];
-                snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'", 
+                snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'",
                         get_type_name($4.type), get_type_name($1));
                 yyerror(err);
             }
@@ -857,7 +857,7 @@ assignment_statement:
             yyerror(err);
         } else if (strcmp($3.type, "unknown") != 0 && !is_type_compatible(sym->type, $3.type)) {
             char err[256];
-            snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'", 
+            snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'",
                      get_type_name($3.type), get_type_name(sym->type));
             yyerror(err);
         }
@@ -869,9 +869,9 @@ assignment_statement:
 return_statement:
     RETURN ';'
     {
-        if (current_method_type 
+        if (current_method_type
             && strcmp(current_method_type, "void") != 0
-            && !is_task_like(current_method_type)) 
+            && !is_task_like(current_method_type))
         {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method must return a value");
@@ -890,7 +890,7 @@ return_statement:
 
                 if (inner && strcmp($2.type, "unknown") != 0 &&
                     !is_type_compatible(inner, $2.type)) {
-                    
+
                     char err[256];
                     snprintf(err, sizeof(err),
                         "Return type mismatch: expected '%s', got '%s'",
@@ -906,7 +906,7 @@ return_statement:
             else {
                 if (strcmp($2.type, "unknown") != 0 &&
                     !is_type_compatible(current_method_type, $2.type)) {
-                    
+
                     char err[256];
                     snprintf(err, sizeof(err),
                         "Return type mismatch: expected '%s', got '%s'",
@@ -920,7 +920,7 @@ return_statement:
         free($2.type);
     }
     ;
-    
+
 lambda_expression:
     '(' parameter_list ')' ARROW expression
     {
@@ -937,7 +937,89 @@ lambda_expression:
     }
 
 expression:
-    lambda_expression
+    NEW qualified_identifier '(' argument_list ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW qualified_identifier '(' argument_list ')'
+    {
+         $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '(' argument_list ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW qualified_identifier '(' ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW type '(' argument_list ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW type '(' ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW qualified_identifier '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW type '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
+    | NEW IDENTIFIER '(' ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
+    | NEW qualified_identifier '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '(' ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '<' type '>' '(' ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '<' type '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW type '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW type '[' ']' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '<' type '>' '(' ')' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '(' ')' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '<' type '>' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | lambda_expression
     {
         $$.type = strdup("lambda");
     }
@@ -1189,56 +1271,6 @@ expression:
         $$.type = strdup("unknown");
         free($4);
     }
-    | NEW IDENTIFIER '(' argument_list ')'
-    {
-        $$.type = strdup($2);
-        free($2);
-    }
-    | NEW IDENTIFIER '(' ')'
-    {
-        $$.type = strdup($2);
-        free($2);
-    }
-    | NEW qualified_identifier '(' argument_list ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '(' ')' 
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '<' type '>' '(' ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '<' type '>' '(' argument_list ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW type '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW type '[' ']' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '<' type '>' '(' ')' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '(' ')' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '<' type '>' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
     | TYPEOF '(' qualified_identifier ')'
     {
         $$.type = strdup("type");
@@ -1360,6 +1392,20 @@ expression:
     {
         $$.type = strdup("bool");
         free($1.type);
+    }
+    ;
+
+property_initializers:
+    property_initializer
+    | property_initializers ',' property_initializer
+    ;
+
+property_initializer:
+    IDENTIFIER '=' expression
+    {
+        printf("DEBUG: prop init %s\n", $1);
+        free($1);
+        free($3.type);
     }
     ;
 

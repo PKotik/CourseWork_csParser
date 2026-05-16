@@ -74,12 +74,17 @@ int is_collection_type(const char* type) {
 
 int is_type_compatible(const char* target, const char* source) {
     if (strcmp(target, source) == 0) return 1;
-
-    if (strcmp(source, "collection") == 0 && is_collection_type(target))
-        return 1;
-
+    if (strcmp(source, "collection") == 0 && is_collection_type(target)) return 1;
     if (strcmp(target, "bool") == 0 && strcmp(source, "int") == 0) return 1;
-
+    
+    // null совместим с любым nullable типом (заканчивается на ?)
+    if (strcmp(source, "null") == 0) {
+        int len = strlen(target);
+        if (len > 0 && target[len-1] == '?') return 1;
+        if (strcmp(target, "string") == 0) return 1; // string - reference type
+        if (strcmp(target, "object") == 0) return 1; // object - reference type
+    }
+    
     return 0;
 }
 
@@ -1350,6 +1355,11 @@ expression:
         $$.type = strdup("outtype");
         free($2);
         free($3);
+    }
+    | expression IS NULL_
+    {
+        $$.type = strdup("bool");
+        free($1.type);
     }
     ;
 

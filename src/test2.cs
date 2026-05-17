@@ -22,8 +22,10 @@ public class MyClass {
         return;
     }
 
-    public void Method3() {
-        return;
+    void Method3(DocumentModelEditDto editModel) 
+    {
+        var hideFieldKeys = GetFieldsKeysForHideViewModel();
+        foreach (var hideField in hideFieldKeys) {}
     }
 
     private int Method4() {

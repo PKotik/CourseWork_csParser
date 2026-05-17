@@ -378,8 +378,8 @@ class_member:
 explicit_property_declaration:
     type qualified_identifier ARROW expression ';'
     {
-        printf("DEBUG: explicit_property_declaration matched\n");
-        printf("  Explicit interface property: %s (type: %s)\n", $2, $1);
+        // printf("DEBUG: explicit_property_declaration matched\n");
+        // printf("  Explicit interface property: %s (type: %s)\n", $2, $1);
         free($2);
         free($1);
         free($4.type);
@@ -712,7 +712,10 @@ method_body:
     ;
 
 block:
-    '{' statements '}'
+    '{' statements '}' 
+    { 
+        // printf("DEBUG: block closed\n"); 
+    }
     ;
 
 switch_labels:
@@ -742,8 +745,14 @@ switch_block:
     ;
 
 statements:
-    /* empty */
-    | statements statement
+    /* empty */ 
+    { 
+        // printf("DEBUG: statements empty\n"); 
+    }
+    | statements statement 
+    { 
+        // printf("DEBUG: statements got statement\n"); 
+    }
     ;
 
 statement:
@@ -768,7 +777,7 @@ statement:
         }
         free($3.type);
     }
-    | WHILE '(' expression ')'
+    | WHILE '(' expression ')' 
     {
         loop_depth++;
     } 
@@ -783,7 +792,7 @@ statement:
         }
         free($3.type);
     }
-    | FOREACH '(' type IDENTIFIER IN expression ')' statement
+    | FOREACH '(' type IDENTIFIER IN expression ')' 
     {
         loop_depth++;
     } 
@@ -792,9 +801,7 @@ statement:
         loop_depth--;
         char* var_type = NULL;
         if (strcmp($3, "var") == 0) {
-            // Пытаемся получить тип элемента из коллекции
             if (strncmp($6.type, "List<", 5) == 0 || strncmp($6.type, "IEnumerable<", 12) == 0) {
-                // Извлекаем тип из скобок
                 char* start = strchr($6.type, '<') + 1;
                 char* end = strchr(start, '>');
                 if (end && end > start) {
@@ -866,6 +873,42 @@ statement:
     {
         free($3.type);
     }
+    | TRY block catch_clauses finally_clause
+    {
+        // try-catch-finally
+    }
+    | TRY block finally_clause
+    {
+        // try-finally
+    }
+    ;
+
+catch_clauses:
+    catch_clause
+    | catch_clauses catch_clause
+    ;
+
+catch_clause:
+    CATCH block
+    {
+        // catch без спецификации
+    }
+    | CATCH '(' type IDENTIFIER ')' block
+    {
+        // catch (Exception ex)
+        free($4);
+        free($3);
+    }
+    | CATCH '(' type ')' block
+    {
+        // catch (Exception)
+        free($3);
+    }
+    ;
+
+finally_clause:
+    /* empty */
+    | FINALLY block
     ;
 
 declaration_statement:
@@ -895,6 +938,24 @@ declaration_statement:
         free($2);
         free($1);
         free($4.type);
+    }
+    | VAR '(' deconstruction_vars ')' '=' expression ';'
+    {
+        printf("  Tuple deconstruction\n");
+        free($6.type);
+    }
+    ;
+    
+deconstruction_vars:
+    IDENTIFIER
+    {
+        add_symbol($1, "unknown");
+        free($1);
+    }
+    | deconstruction_vars ',' IDENTIFIER
+    {
+        add_symbol($3, "unknown");
+        free($3);
     }
     ;
 
@@ -1512,6 +1573,10 @@ expression:
         $$.type = strdup("unknown");
         free($3);
     }
+    | '_'
+    {
+        $$.type = strdup("discard");
+    }
     ;
 
 property_initializers:
@@ -1567,6 +1632,10 @@ argument:
         add_symbol($3, $2);
         free($2);
         free($3);
+    }
+    | OUT '_'
+    {
+        // discard - игнорируем
     }
     | IDENTIFIER ':' expression
     {

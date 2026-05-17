@@ -132,6 +132,7 @@ void print_semantic_error(const char* msg) {
 "not"           { update_position(yytext, yyleng); return NOT; }
 "with"          { update_position(yytext, yyleng); return WITH; }
 
+
 [a-zA-Z_][a-zA-Z0-9_]* {
     update_position(yytext, yyleng);
     yylval.string = strdup(yytext);

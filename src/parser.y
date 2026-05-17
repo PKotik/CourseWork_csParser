@@ -67,16 +67,26 @@ int is_task_generic(const char* type) {
 }
 
 int is_collection_type(const char* type) {
-    return strstr(type, "Dictionary<") == type ||
-           strstr(type, "List<") == type ||
-           strstr(type, "IEnumerable<") == type;
+    if (type == NULL) return 0;
+    return strncmp(type, "Dictionary<", 11) == 0 ||
+           strncmp(type, "List<", 5) == 0 ||
+           strncmp(type, "IEnumerable<", 12) == 0 ||
+           strncmp(type, "ICollection<", 12) == 0 ||
+           strcmp(type, "List") == 0 ||
+           strcmp(type, "IEnumerable") == 0 ||
+           strcmp(type, "ICollection") == 0 ||
+           strcmp(type, "Collection") == 0 ||
+           strcmp(type, "IList") == 0;
 }
 
 int is_type_compatible(const char* target, const char* source) {
     if (strcmp(target, source) == 0) return 1;
     if (strcmp(source, "collection") == 0 && is_collection_type(target)) return 1;
     if (strcmp(target, "bool") == 0 && strcmp(source, "int") == 0) return 1;
+    if (strncmp(target, "ValueTask<", 10) == 0 && strcmp(source, "null") == 0) return 1;
 
+    if (strcmp(source, "var") == 0) return 1;
+    
     // null совместим с любым nullable типом (заканчивается на ?)
     if (strcmp(source, "null") == 0) {
         int len = strlen(target);
@@ -84,7 +94,7 @@ int is_type_compatible(const char* target, const char* source) {
         if (strcmp(target, "string") == 0) return 1; // string - reference type
         if (strcmp(target, "object") == 0) return 1; // object - reference type
     }
-
+    
     return 0;
 }
 
@@ -151,7 +161,8 @@ const char* get_type_name(const char* type) {
 %token WHERE STRUCT NOTNULL UNMANAGED
 %token BASE THIS
 %token IS
-%token OUT
+%token OUT AS NOT
+%token WITH
 
 %type <expr> expression
 %type <string> type
@@ -159,11 +170,12 @@ const char* get_type_name(const char* type) {
 %type <string> type_list
 %type <string> qualified_identifier
 
-%left AND_AND OR_OR
+%left NOT AND_AND OR_OR
 %right ARROW
 %right '?' ':'
 %left '<' '>' LE GE EQ_EQ NE
 %right '!'
+%left AS
 %left '+' '-'
 %left '*' '/' '%'
 %nonassoc UMINUS
@@ -379,7 +391,7 @@ explicit_method_declaration:
         current_method_type = strdup($2);
         current_method_name = strdup($3);
         current_method_has_return = 0;
-        printf("  Explicit interface method: %s (return type: %s)\n", $3, $2);
+        // printf("  Explicit interface method: %s (return type: %s)\n", $3, $2);
         free($3);
         free($2);
         free(current_method_type);
@@ -393,7 +405,7 @@ explicit_method_declaration:
         current_method_type = strdup($1);
         current_method_name = strdup($2);
         current_method_has_return = 0;
-        printf("  Explicit interface method: %s (return type: %s)\n", $2, $1);
+        // printf("  Explicit interface method: %s (return type: %s)\n", $2, $1);
         free($2);
         free($1);
         free(current_method_type);
@@ -404,14 +416,14 @@ explicit_method_declaration:
     }
     | modifiers type qualified_identifier '(' parameter_list ')' ARROW expression ';'
     {
-        printf("  Expression-bodied explicit interface method: %s (return type: %s)\n", $3, $2);
+        // printf("  Expression-bodied explicit interface method: %s (return type: %s)\n", $3, $2);
         free($3);
         free($2);
         free($8.type);
     }
     | type qualified_identifier '(' parameter_list ')' ARROW expression ';'
     {
-        printf("  Expression-bodied explicit interface method: %s (return type: %s)\n", $2, $1);
+        // printf("  Expression-bodied explicit interface method: %s (return type: %s)\n", $2, $1);
         free($2);
         free($1);
         free($7.type);
@@ -421,14 +433,14 @@ explicit_method_declaration:
 expression_method_declaration:
     modifiers type IDENTIFIER '(' parameter_list ')' ARROW expression ';'
     {
-        printf("  Expression-bodied method: %s (return type: %s)\n", $3, $2);
+        // printf("  Expression-bodied method: %s (return type: %s)\n", $3, $2);
         free($3);
         free($2);
         free($8.type);
     }
     | type IDENTIFIER '(' parameter_list ')' ARROW expression ';'
     {
-        printf("  Expression-bodied method: %s (return type: %s)\n", $2, $1);
+        // printf("  Expression-bodied method: %s (return type: %s)\n", $2, $1);
         free($2);
         free($1);
         free($7.type);
@@ -483,21 +495,21 @@ field_declaration:
     ;
 
 method_declaration:
-    modifiers type IDENTIFIER '(' parameter_list ')'
+    modifiers type IDENTIFIER '(' parameter_list ')' 
     {
         current_method_type = strdup($2);
         current_method_name = strdup($3);
         current_method_has_return = 0;
-        printf("  Method: %s (return type: %s)\n", $3, $2);
+        // printf("  Method: %s (return type: %s)\n", $3, $2);
         free($3);
         free($2);
     }
     method_body
     {
-        if (current_method_type
-            && strcmp(current_method_type, "void") != 0
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0 
             && !is_task_like(current_method_type)
-            && !current_method_has_return)
+            && !current_method_has_return) 
         {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method '%s' must return a value", current_method_name);
@@ -509,19 +521,19 @@ method_declaration:
         current_method_name = NULL;
         current_method_has_return = 0;
     }
-    | type IDENTIFIER '(' parameter_list ')'
+    | type IDENTIFIER '(' parameter_list ')' 
     {
         current_method_type = strdup($1);
         current_method_name = strdup($2);
         current_method_has_return = 0;
-        printf("  Method: %s (return type: %s)\n", $2, $1);
+        // printf("  Method: %s (return type: %s)\n", $2, $1);
         free($2);
         free($1);
     }
     method_body
     {
-        if (current_method_type
-            && strcmp(current_method_type, "void") != 0
+        if (current_method_type 
+            && strcmp(current_method_type, "void") != 0 
             && !is_task_like(current_method_type)
             && !current_method_has_return)
         {
@@ -600,7 +612,7 @@ type:
     | OBJECT { $$ = strdup("object"); }
     | VAR { $$ = strdup("var"); }
     | TASK { $$ = strdup("Task"); }
-    | TASK '<' type '>' {
+    | TASK '<' type '>' { 
         char* task_type = malloc(strlen("Task<") + strlen($3) + 2);
         sprintf(task_type, "Task<%s>", $3);
         $$ = task_type;
@@ -623,7 +635,7 @@ type:
         free($3);
     }
     | IDENTIFIER { $$ = $1; }
-    | type '?' {
+    | type '?' { 
         char* nullable = malloc(strlen($1) + 2);
         sprintf(nullable, "%s?", $1);
         $$ = nullable;
@@ -670,14 +682,14 @@ parameter:
     type IDENTIFIER
     {
         add_symbol($2, $1);
-        printf("    Parameter: %s %s\n", $1, $2);
+        // printf("    Parameter: %s %s\n", $1, $2);
         free($2);
         free($1);
     }
     | type IDENTIFIER '=' expression
     {
         add_symbol($2, $1);
-        printf("    Parameter: %s %s = default\n", $1, $2);
+        // printf("    Parameter: %s %s = default\n", $1, $2);
         free($2);
         free($1);
         free($4.type);
@@ -690,7 +702,7 @@ parameter:
     ;
 
 method_body:
-    ';'
+    ';' 
     {
         // Абстрактный метод
         current_method_has_return = 1;
@@ -737,7 +749,7 @@ statement:
     block
     | IF '(' expression ')' statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 &&
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
@@ -747,7 +759,7 @@ statement:
     }
     | IF '(' expression ')' statement ELSE statement
     {
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 &&
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
@@ -758,11 +770,11 @@ statement:
     | WHILE '(' expression ')'
     {
         loop_depth++;
-    }
+    } 
     statement
     {
         loop_depth--;
-        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 &&
+        if (strcmp($3.type, "int") != 0 && strcmp($3.type, "bool") != 0 && 
             strcmp($3.type, "unknown") != 0 && strcmp($3.type, "null") != 0) {
             char err[256];
             snprintf(err, sizeof(err), "Condition must be bool or int, got '%s'", $3.type);
@@ -770,18 +782,39 @@ statement:
         }
         free($3.type);
     }
-    | FOREACH '(' type IDENTIFIER IN expression')'
+    | FOREACH '(' type IDENTIFIER IN expression ')' statement
     {
         loop_depth++;
-    }
+    } 
     statement
     {
         loop_depth--;
-        // printf("DEBUG FOREACH: next token type after in is: %s\n", $6.type);
-        add_symbol($4, $3);
+        char* var_type = NULL;
+        if (strcmp($3, "var") == 0) {
+            // Пытаемся получить тип элемента из коллекции
+            if (strncmp($6.type, "List<", 5) == 0 || strncmp($6.type, "IEnumerable<", 12) == 0) {
+                // Извлекаем тип из скобок
+                char* start = strchr($6.type, '<') + 1;
+                char* end = strchr(start, '>');
+                if (end && end > start) {
+                    int len = end - start;
+                    var_type = malloc(len + 1);
+                    strncpy(var_type, start, len);
+                    var_type[len] = '\0';
+                } else {
+                    var_type = strdup("unknown");
+                }
+            } else {
+                var_type = strdup("unknown");
+            }
+        } else {
+            var_type = strdup($3);
+        }
+        add_symbol($4, var_type);
+        free(var_type);
         free($4);
         free($3);
-        if (strcmp($6.type, "collection") != 0 && strcmp($6.type, "unknown") != 0) {
+        if (strcmp($6.type, "collection") != 0 && strcmp($6.type, "unknown") != 0 && !is_collection_type($6.type)) {
             char err[256];
             snprintf(err, sizeof(err), "Expected collection type after 'in', got '%s'", $6.type);
             yyerror(err);
@@ -815,6 +848,23 @@ statement:
     {
         free($2.type);
     }
+    | USING type IDENTIFIER '=' expression ';'
+    {
+        add_symbol($3, $2);
+        free($3);
+        free($2);
+        free($5.type);
+    }
+    | USING IDENTIFIER '=' expression ';'
+    {
+        add_symbol($2, "var");
+        free($2);
+        free($4.type);
+    }
+    | USING '(' expression ')' statement
+    {
+        free($3.type);
+    }
     ;
 
 declaration_statement:
@@ -834,7 +884,7 @@ declaration_statement:
         } else {
             if (strcmp($4.type, "unknown") != 0 && !is_type_compatible($1, $4.type)) {
                 char err[256];
-                snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'",
+                snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'", 
                         get_type_name($4.type), get_type_name($1));
                 yyerror(err);
             }
@@ -855,23 +905,31 @@ assignment_statement:
             char err[256];
             snprintf(err, sizeof(err), "Variable '%s' not declared", $1);
             yyerror(err);
-        } else if (strcmp($3.type, "unknown") != 0 && !is_type_compatible(sym->type, $3.type)) {
+        } else if (strcmp($3.type, "unknown") != 0 && strcmp($3.type, "lambda") != 0 && !is_type_compatible(sym->type, $3.type)) {
             char err[256];
-            snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'",
+            snprintf(err, sizeof(err), "Cannot assign '%s' to '%s'", 
                      get_type_name($3.type), get_type_name(sym->type));
             yyerror(err);
         }
         free($1);
         free($3.type);
     }
+    | expression '.' IDENTIFIER '=' expression ';'
+    {
+        // Присваивание свойству
+        // printf("DEBUG: property assignment: %s.%s\n", $1.type, $3);
+        free($3);
+        free($1.type);
+        free($5.type);
+    }
     ;
 
 return_statement:
     RETURN ';'
     {
-        if (current_method_type
+        if (current_method_type 
             && strcmp(current_method_type, "void") != 0
-            && !is_task_like(current_method_type))
+            && !is_task_like(current_method_type)) 
         {
             char err[256];
             snprintf(err, sizeof(err), "Non-void method must return a value");
@@ -890,7 +948,7 @@ return_statement:
 
                 if (inner && strcmp($2.type, "unknown") != 0 &&
                     !is_type_compatible(inner, $2.type)) {
-
+                    
                     char err[256];
                     snprintf(err, sizeof(err),
                         "Return type mismatch: expected '%s', got '%s'",
@@ -906,7 +964,7 @@ return_statement:
             else {
                 if (strcmp($2.type, "unknown") != 0 &&
                     !is_type_compatible(current_method_type, $2.type)) {
-
+                    
                     char err[256];
                     snprintf(err, sizeof(err),
                         "Return type mismatch: expected '%s', got '%s'",
@@ -920,7 +978,7 @@ return_statement:
         free($2.type);
     }
     ;
-
+    
 lambda_expression:
     '(' parameter_list ')' ARROW expression
     {
@@ -935,91 +993,15 @@ lambda_expression:
         free($1);
         free($3.type);
     }
+    | '_' ARROW expression
+    {
+        $$.type = strdup("lambda");
+        free($3.type);
+    }
+    ;
 
 expression:
-    NEW qualified_identifier '(' argument_list ')' '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW qualified_identifier '(' argument_list ')'
-    {
-         $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '(' argument_list ')' '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW qualified_identifier '(' ')' '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW type '(' argument_list ')' '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW type '(' ')' '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW qualified_identifier '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW type '{' property_initializers '}'
-    {
-        $$.type = strdup("object");
-    }
-    | NEW IDENTIFIER '(' argument_list ')'
-    {
-        $$.type = strdup($2);
-        free($2);
-    }
-    | NEW IDENTIFIER '(' ')'
-    {
-        $$.type = strdup($2);
-        free($2);
-    }
-    | NEW qualified_identifier '(' argument_list ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '(' ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '<' type '>' '(' ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW qualified_identifier '<' type '>' '(' argument_list ')'
-    {
-        $$.type = strdup("unknown");
-    }
-    | NEW type '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW type '[' ']' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '<' type '>' '(' ')' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '(' ')' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '<' type '>' '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | NEW qualified_identifier '{' argument_list '}'
-    {
-        $$.type = strdup("collection");
-    }
-    | lambda_expression
+    lambda_expression
     {
         $$.type = strdup("lambda");
     }
@@ -1062,10 +1044,13 @@ expression:
     }
     | IDENTIFIER
     {
+        // printf("DEBUG: identifier '%s'\n", $1);
         Symbol* sym = find_symbol($1);
         if (!sym) {
+            // printf("DEBUG: symbol '%s' NOT found\n", $1);
             $$.type = strdup("unknown");
         } else {
+            // printf("DEBUG: symbol '%s' found, type='%s'\n", $1, sym->type);
             $$.type = strdup(sym->type);
         }
         free($1);
@@ -1271,6 +1256,99 @@ expression:
         $$.type = strdup("unknown");
         free($4);
     }
+    | IDENTIFIER '?' '.' IDENTIFIER
+    {
+        $$.type = strdup("unknown");
+        free($1);
+        free($4);
+    }
+    | IDENTIFIER '?' '.' IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($1);
+        free($4);
+    }
+    | NEW IDENTIFIER '(' ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+        free($2);
+    }
+    | NEW IDENTIFIER '(' argument_list ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+        free($2);
+    }
+    | NEW IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
+    | NEW IDENTIFIER '<' type '>' '(' argument_list ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+        free($4);
+    }
+    | NEW IDENTIFIER '<' type '>' '(' ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+        free($4);
+    }
+    | NEW IDENTIFIER '(' ')'
+    {
+        $$.type = strdup($2);
+        free($2);
+    }
+    | NEW qualified_identifier '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '(' ')' 
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '<' type '>' '(' ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW qualified_identifier '<' type '>' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW type '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW type '[' ']' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '<' type '>' '(' ')' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '(' ')' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '<' type '>' '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '{' argument_list '}'
+    {
+        $$.type = strdup("collection");
+    }
+    | NEW qualified_identifier '{' property_initializers '}'
+    {
+        $$.type = strdup($2);  // Тип из идентификатора
+        free($2);
+    }
+    | NEW type '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
     | TYPEOF '(' qualified_identifier ')'
     {
         $$.type = strdup("type");
@@ -1379,7 +1457,7 @@ expression:
     }
     | OUT VAR IDENTIFIER
     {
-        $$.type = strdup("outvar");
+        $$.type = strdup("var");
         free($3);
     }
     | OUT type IDENTIFIER
@@ -1393,17 +1471,47 @@ expression:
         $$.type = strdup("bool");
         free($1.type);
     }
+    | expression AS type
+    {
+        $$.type = strdup($3);
+        free($1.type);
+        free($3);
+    }
+    | expression IS NOT NULL_
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+    }
+    | expression WITH '{' property_initializers '}'
+    {
+        $$.type = strdup($1.type);
+        free($1.type);
+    }
+    | STRING '.' IDENTIFIER '(' argument_list ')'
+    {
+        $$.type = strdup("bool");
+        free($3);
+    }
+    | THIS
+    {
+        $$.type = strdup("this");
+    }
+    | THIS '.' IDENTIFIER
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
     ;
 
 property_initializers:
-    property_initializer
+    /* empty */
+    | property_initializer
     | property_initializers ',' property_initializer
     ;
 
 property_initializer:
     IDENTIFIER '=' expression
     {
-        printf("DEBUG: prop init %s\n", $1);
         free($1);
         free($3.type);
     }
@@ -1438,8 +1546,16 @@ argument_list:
 argument:
     expression
     | lambda_expression
+    | OUT VAR IDENTIFIER
     {
-        // printf("DEBUG: argument with lambda_expression\n");
+        add_symbol($3, "var");
+        free($3);
+    }
+    | OUT type IDENTIFIER
+    {
+        add_symbol($3, $2);
+        free($2);
+        free($3);
     }
     | IDENTIFIER ':' expression
     {

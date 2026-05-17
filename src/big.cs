@@ -526,25 +526,25 @@ public partial class DocumentModel<TModel> : IDocumentModel
         };
     }
 
-    void ProcessHiddenFields(DocumentModelEditDto editModel)
-    {
-        var hideFieldKeys = GetFieldsKeysForHideViewModel();
-        foreach (var hideField in hideFieldKeys)
-        {
-            var field = editModel.Fields.FirstOrDefault(x => x.Key == hideField.Key);
-            if (field != null)
-            {
-                if (hideField.KeepInModel)
-                {
-                    field.DataType = DocumentFieldInterfaceDataType.Hidden;
-                }
-                else
-                {
-                    editModel.Fields.Remove(field);
-                }
-            }
-        }
-    }
+    // void ProcessHiddenFields(DocumentModelEditDto editModel)
+    // {
+    //     var hideFieldKeys = GetFieldsKeysForHideViewModel();
+    //     foreach (var hideField in hideFieldKeys)
+    //     {
+    //         var field = editModel.Fields.FirstOrDefault(x => x.Key == hideField.Key);
+    //         if (field != null)
+    //         {
+    //             if (hideField.KeepInModel)
+    //             {
+    //                 field.DataType = DocumentFieldInterfaceDataType.Hidden;
+    //             }
+    //             else
+    //             {
+    //                 editModel.Fields.Remove(field);
+    //             }
+    //         }
+    //     }
+    // }
 
     async Task InitContext(TModel model, DocumentModelContext context)
     {

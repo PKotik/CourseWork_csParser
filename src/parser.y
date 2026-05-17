@@ -1502,6 +1502,16 @@ expression:
         $$.type = strdup("unknown");
         free($3);
     }
+    | expression '.' IDENTIFIER '!'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
+    | expression '.' IDENTIFIER '!' '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+        free($3);
+    }
     ;
 
 property_initializers:

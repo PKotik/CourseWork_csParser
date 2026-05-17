@@ -29,4 +29,8 @@ public class MyClass {
     private int Method4() {
         return 3;
     }
+
+    public void Method5() {
+        Console.WriteLine(123);
+    }
 }

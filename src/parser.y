@@ -378,6 +378,7 @@ class_member:
 explicit_property_declaration:
     type qualified_identifier ARROW expression ';'
     {
+        printf("DEBUG: explicit_property_declaration matched\n");
         printf("  Explicit interface property: %s (type: %s)\n", $2, $1);
         free($2);
         free($1);

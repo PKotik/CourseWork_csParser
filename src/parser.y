@@ -15,6 +15,7 @@ int yylex(void);
 int has_errors = 0;
 
 int loop_depth = 0;
+int switch_depth = 0;
 
 typedef struct Symbol {
     char* name;
@@ -163,6 +164,8 @@ const char* get_type_name(const char* type) {
 %token IS
 %token OUT AS NOT
 %token WITH
+%token PLUS_PLUS MINUS_MINUS
+%token WHEN
 
 %type <expr> expression
 %type <string> type
@@ -170,6 +173,7 @@ const char* get_type_name(const char* type) {
 %type <string> type_list
 %type <string> qualified_identifier
 
+%right PLUS_PLUS MINUS_MINUS
 %left NOT AND_AND OR_OR
 %right ARROW
 %right '?' ':'
@@ -215,6 +219,10 @@ using_directive:
     USING qualified_identifier ';'
     {
         // printf("Using directive\n");
+    }
+    | USING STATIC qualified_identifier ';'
+    {
+        printf("Using static directive\n");
     }
     | USING IDENTIFIER '=' qualified_identifier ';'
     {
@@ -326,10 +334,15 @@ class_primary_constructor:
 
 class_inheritance:
     /* empty */
-    | ':' qualified_identifier
+    | ':' base_list
     {
-        printf("  Inherits from\n");
+        printf("  Inherits/implements\n");
     }
+    ;
+
+base_list:
+    qualified_identifier
+    | base_list ',' qualified_identifier
     ;
 
 class_modifiers:
@@ -356,7 +369,7 @@ class_members:
 const_declaration:
     modifiers CONST type IDENTIFIER '=' expression ';'
     {
-        printf("  Constant: %s (type: %s)\n", $4, $3);
+        // printf("  Constant: %s (type: %s)\n", $4, $3);
         add_symbol($4, $3);
         free($4);
         free($3);
@@ -465,21 +478,21 @@ constructor_initializer:
 field_declaration:
     type IDENTIFIER ';'
     {
-        printf("  Field: %s\n", $2);
+        // printf("  Field: %s\n", $2);
         add_symbol($2, $1);
         free($2);
         free($1);
     }
     | modifiers type IDENTIFIER ';'
     {
-        printf("  Field: %s\n", $3);
+        // printf("  Field: %s\n", $3);
         add_symbol($3, $2);
         free($3);
         free($2);
     }
     | type IDENTIFIER '=' expression ';'
     {
-        printf("  Field with init: %s\n", $2);
+        // printf("  Field with init: %s\n", $2);
         add_symbol($2, $1);
         free($2);
         free($1);
@@ -487,7 +500,7 @@ field_declaration:
     }
     | modifiers type IDENTIFIER '=' expression ';'
     {
-        printf("  Field with init: %s\n", $3);
+        // printf("  Field with init: %s\n", $3);
         add_symbol($3, $2);
         free($3);
         free($2);
@@ -553,20 +566,20 @@ method_declaration:
 property_declaration:
     modifiers type IDENTIFIER ARROW expression ';'
     {
-        printf("  Expression-bodied property: %s (type: %s)\n", $3, $2);
+        // printf("  Expression-bodied property: %s (type: %s)\n", $3, $2);
         free($3);
         free($2);
         free($5.type);
     }
     | modifiers type IDENTIFIER '{' accessors '}'
     {
-        printf("  Property: %s (type: %s)\n", $3, $2);
+        // printf("  Property: %s (type: %s)\n", $3, $2);
         free($3);
         free($2);
     }
     | type IDENTIFIER ARROW expression ';'
     {
-        printf("  Expression-bodied property: %s (type: %s)\n", $2, $1);
+        // printf("  Expression-bodied property: %s (type: %s)\n", $2, $1);
         free($2);
         free($1);
         free($4.type);
@@ -617,6 +630,14 @@ type:
         char* task_type = malloc(strlen("Task<") + strlen($3) + 2);
         sprintf(task_type, "Task<%s>", $3);
         $$ = task_type;
+        free($3);
+    }
+    | IDENTIFIER '<' type_list '>'
+    {
+        char* tmp = malloc(strlen($1) + strlen($3) + 3);
+        sprintf(tmp, "%s<%s>", $1, $3);
+        $$ = tmp;
+        free($1);
         free($3);
     }
     | IDENTIFIER '<' type '>' '?'
@@ -728,6 +749,30 @@ switch_label:
     {
         free($2.type);
     }
+    | CASE type ':'
+    {
+        free($2);
+    }
+    | CASE type IDENTIFIER ':'
+    {
+        add_symbol($3, $2);
+        free($3);
+        free($2);
+    }
+    | CASE type IDENTIFIER WHEN expression ':'
+    {
+        add_symbol($3, $2);
+        free($3);
+        free($2);
+        free($5.type);
+    }
+    | CASE IDENTIFIER WHEN expression ':'
+    {
+        add_symbol($2, "unknown");
+        free($2);
+        free($4.type);
+    }
+    | CASE NULL_ ':'
     | DEFAULT ':'
 ;
 
@@ -829,6 +874,16 @@ statement:
         }
         free($6.type);
     }
+    | FOREACH '(' VAR '(' deconstruction_vars ')' IN expression ')'
+    {
+        loop_depth++;
+    }
+    statement
+    {
+        loop_depth--;
+
+        free($8.type);
+    }
     | declaration_statement
     | assignment_statement
     | return_statement
@@ -844,12 +899,17 @@ statement:
     }
     | BREAK ';'
     {
-        if (loop_depth == 0) {
-            yyerror("break statement not within a loop");
+        if (loop_depth == 0 && switch_depth == 0) {
+            yyerror("break statement not within a loop or switch");
         }
     }
-    | SWITCH '(' expression ')' switch_block
+    | SWITCH '(' expression ')' 
     {
+        switch_depth++;
+    }
+    switch_block
+    {
+        switch_depth--;
         free($3.type);
     }
     | THROW expression ';'
@@ -881,6 +941,62 @@ statement:
     {
         // try-finally
     }
+    | FOR '(' for_initializer ';' expression ';' for_iterator ')' statement
+    {
+        loop_depth++;
+    }
+    statement
+    {
+        loop_depth--;
+        free($5.type);
+    }
+    | FOR '(' type IDENTIFIER '=' expression ';' expression ';' expression ')' 
+    {
+        loop_depth++;
+    }
+    statement
+    {
+        loop_depth--;
+        add_symbol($4, $3);
+        free($4);
+        free($3);
+        free($6.type);
+        free($8.type);
+        free($10.type);
+    }
+    | FOR '(' ';' ';' ')' 
+    {
+        loop_depth++;
+    }
+    statement
+    {
+        loop_depth--;
+    }
+    statement
+    {
+        loop_depth--;
+    }
+    | FOR '(' ';' ';' ')' statement
+    {
+        loop_depth++;
+    }
+    statement
+    {
+        loop_depth--;
+    }
+    ;
+
+for_initializer:
+    /* empty */
+    | declaration_statement
+    | assignment_statement
+    | expression
+    ;
+
+for_iterator:
+    /* empty */
+    | expression
+    | assignment_statement
     ;
 
 catch_clauses:
@@ -1411,9 +1527,34 @@ expression:
     {
         $$.type = strdup("object");
     }
+    | NEW '(' argument_list ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW '(' ')'
+    {
+        $$.type = strdup("unknown");
+    }
+    | NEW '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW '(' ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
+    | NEW '(' argument_list ')' '{' property_initializers '}'
+    {
+        $$.type = strdup("object");
+    }
     | TYPEOF '(' qualified_identifier ')'
     {
         $$.type = strdup("type");
+    }
+    | TYPEOF '(' type ')'
+    {
+        $$.type = strdup("type");
+        free($3);
     }
     | expression NULL_COALESCE expression
     {
@@ -1554,6 +1695,11 @@ expression:
         $$.type = strdup("bool");
         free($3);
     }
+    | STRING '.' IDENTIFIER
+    {
+        $$.type = strdup("string");
+        free($3);
+    }
     | THIS
     {
         $$.type = strdup("this");
@@ -1577,12 +1723,49 @@ expression:
     {
         $$.type = strdup("discard");
     }
+    | expression PLUS_PLUS
+    {
+        $$.type = strdup($1.type);
+        free($1.type);
+    }
+    | expression MINUS_MINUS
+    {
+        $$.type = strdup($1.type);
+        free($1.type);
+    }
+    | expression IS '{' property_pattern_list '}'
+    {
+        $$.type = strdup("bool");
+        free($1.type);
+    }
+    ;
+
+property_pattern_list:
+    property_pattern
+    | property_pattern_list ',' property_pattern
+    ;
+
+property_pattern:
+    IDENTIFIER ':' expression
+    {
+        free($1);
+        free($3.type);
+    }
+    | IDENTIFIER ':' NOT NULL_
+    {
+        free($1);
+    }
+    | IDENTIFIER ':' NOT
+    {
+        free($1);
+    }
     ;
 
 property_initializers:
     /* empty */
     | property_initializer
     | property_initializers ',' property_initializer
+    | property_initializers ','
     ;
 
 property_initializer:

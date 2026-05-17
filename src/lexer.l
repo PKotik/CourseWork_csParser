@@ -131,6 +131,9 @@ void print_semantic_error(const char* msg) {
 "as"            { update_position(yytext, yyleng); return AS; }
 "not"           { update_position(yytext, yyleng); return NOT; }
 "with"          { update_position(yytext, yyleng); return WITH; }
+"++"            { update_position(yytext, yyleng); return PLUS_PLUS; }
+"--"            { update_position(yytext, yyleng); return MINUS_MINUS; }
+"when"            { update_position(yytext, yyleng); return WHEN; }
 
 
 [a-zA-Z_][a-zA-Z0-9_]* {

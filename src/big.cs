@@ -526,25 +526,25 @@ public partial class DocumentModel<TModel> : IDocumentModel
         };
     }
 
-    // void ProcessHiddenFields(DocumentModelEditDto editModel)
-    // {
-    //     var hideFieldKeys = GetFieldsKeysForHideViewModel();
-    //     foreach (var hideField in hideFieldKeys)
-    //     {
-    //         var field = editModel.Fields.FirstOrDefault(x => x.Key == hideField.Key);
-    //         if (field != null)
-    //         {
-    //             if (hideField.KeepInModel)
-    //             {
-    //                 field.DataType = DocumentFieldInterfaceDataType.Hidden;
-    //             }
-    //             else
-    //             {
-    //                 editModel.Fields.Remove(field);
-    //             }
-    //         }
-    //     }
-    // }
+    void ProcessHiddenFields(DocumentModelEditDto editModel)
+    {
+        var hideFieldKeys = GetFieldsKeysForHideViewModel();
+        foreach (var hideField in hideFieldKeys)
+        {
+            var field = editModel.Fields.FirstOrDefault(x => x.Key == hideField.Key);
+            if (field != null)
+            {
+                if (hideField.KeepInModel)
+                {
+                    field.DataType = DocumentFieldInterfaceDataType.Hidden;
+                }
+                else
+                {
+                    editModel.Fields.Remove(field);
+                }
+            }
+        }
+    }
 
     async Task InitContext(TModel model, DocumentModelContext context)
     {
@@ -689,10 +689,10 @@ public partial class DocumentModel<TModel> : IDocumentModel
             try
             {
                 await UpdateFieldValue(field, model, value, options, context, false);
-                if (changedFieldKeys != null && !changedFieldKeys.TryGetValue(field.Key, out _))
-                {
-                    changedFieldKeys.Add(field.Key);
-                }
+                // if (changedFieldKeys != null && !changedFieldKeys.TryGetValue(field.Key, out _))
+                // {
+                //     changedFieldKeys.Add(field.Key);
+                // }
             } catch (Exception ex)
             {
                 throw new ValidationMultiLangException(
@@ -782,25 +782,6 @@ public partial class DocumentModel<TModel> : IDocumentModel
         return modelItem;
     }
 
-    (IDocumentModel? Model, Type Type) ExpandFieldModel(
-        DocumentModelField<TModel> field,
-        DocumentModelContext context,
-        TModel source
-    )
-    {
-        var targetType = field.InnerObjectModelType ??
-                         (field.DataType == DocumentFieldInterfaceDataType.ObjectList
-                             ? field.ValueBinder?.StoredType().GetItemType()
-                             : (field.ValueBinder.GetValue(source)?.GetType() ?? field.ValueBinder?.StoredType())
-                         );
-        ArgumentNullException.ThrowIfNull(targetType, $"Unable to get field {field.Id} stored type");
-
-        var modelKey = field.GetInnerObjectModelKey?.Invoke(source, context) ?? string.Empty;
-        var model = _prototype.ConfigurationSet.GetModel(targetType, modelKey, _contextFactory);
-
-        return (model, targetType);
-    }
-
     /// <summary>
     /// Обновить значение поля из запроса ModelUpdateRequest
     /// </summary>
@@ -858,6 +839,7 @@ public partial class DocumentModel<TModel> : IDocumentModel
                     var objectValue = new List<object?>();
 
                     for (var i = 0; i < objectListValue.Length; i++)
+                    {
                         objectValue.Add(
                             await CalculateNewItem(
                                 modelCopy,
@@ -872,6 +854,8 @@ public partial class DocumentModel<TModel> : IDocumentModel
                                 context
                             )
                         );
+                    }
+
 
                     var valueArray = Array.CreateInstance(itemType, objectValue.Count);
                     objectValue.ToArray().CopyTo(valueArray, 0);
@@ -1016,618 +1000,6 @@ public partial class DocumentModel<TModel> : IDocumentModel
         }
     }
 
-    async Task<IReadOnlyCollection<DocumentModelEditFieldDto>> BuildDocumentFieldEditModel(
-    TModel model,
-    DocumentModelField<TModel> modelField,
-    DocumentModelEditOptions options,
-    DocumentModelContext context,
-    bool update,
-    Func<DocumentModelField<TModel>, ValueTask<DocumentModelFieldModification>>? getModificationCallback,
-    List<DocumentModelGroupDto> discoveredInnerGroups
-)
-    {
-        var localizationService = context.Resolve<ILocalizationService>();
-        var hintMessageProvider = context.Resolve<IHintMessageProvider>();
-
-        var accept = modelField.Accept != null
-            ? await modelField.Accept(model, context)
-            : [];
-
-        var actionPreset = _prototype.FieldActionPreset != null
-            ? context.ResolverContext.Resolve(_prototype.FieldActionPreset) as IModelFieldActionPreset<TModel>
-            : null;
-
-        var field = new DocumentModelEditFieldDto
-        {
-            Key = modelField.Key,
-            KeyAliases = modelField.KeyAliases,
-            Scope = modelField.Scope,
-            Title = localizationService.Format(modelField.Title),
-            DataType = modelField.DataType,
-            IsEmptyChecker = modelField.IsEmptyChecker,
-            Attributes = new FieldAttributes
-            {
-                Scope = modelField.Scope,
-                PlainList = modelField.Attributes.PlainList,
-                SideField = modelField.Attributes.SideField,
-                Accept = accept.Any()
-                    ? string.Join(", ", accept.Select(FileTypeHelper.GetContentType))
-                    : null,
-                AcceptNote = accept.Any()
-                    ? string.Join(", ", accept.Select(a => a.ToString()))
-                    : null,
-                Actions = actionPreset != null
-                    ? (await actionPreset.GetActions(
-                        new()
-                        {
-                            EntityId = GetModelId(model),
-                            Field = modelField.Key,
-                            ModelNameOverride = context.DocumentModel.ModelKey,
-                            EnabledActions = modelField.Actions.ToArray()
-                        },
-                        context
-                    ))
-                    .ToArray()
-                    : [],
-                Limit = modelField.Limit
-            },
-        };
-
-        DocumentModelFieldModification? modification = null;
-        bool isModified = false;
-
-        if (getModificationCallback != null)
-        {
-            var mod = await getModificationCallback(modelField);
-            var (status, source, ambiguous) = mod;
-
-            var isPersistent = status == DocumentModelFieldModificationStatus.Persistent;
-            isModified = status == DocumentModelFieldModificationStatus.Modified;
-
-            if (!isPersistent)
-            {
-                field.Attributes.IsModified = isModified;
-                field.Attributes.SourceValue = source;
-            }
-
-            if (ambiguous)
-                field.Attributes.Ambiguous = ambiguous;
-
-            modification = mod;
-        }
-
-        await modelField.AttributesFactory(field.Attributes, context);
-
-        try
-        {
-            var editableContext = EditableDocumentModelContext.FromBaseContext(context, _isNewDocument);
-
-            field.Title = modelField.TitleFunc != null
-                ? localizationService.Format(await modelField.TitleFunc(model, editableContext))
-                : localizationService.Format(modelField.Title);
-
-            field.Title = field.Title.IsBlank() ? modelField.Key : field.Title;
-
-            field.IsEditable = await IsEditable(
-                model,
-                modelField,
-                EditableDocumentModelContext.FromBaseContext(editableContext, _isNewDocument)
-            );
-
-            field.Description = localizationService.Format(await modelField.Description(model, editableContext));
-            field.Caption = localizationService.Format(modelField.Caption);
-            field.IsAvailable = await IsAvailable(model, modelField, editableContext);
-            field.IsAffectingDocumentStructure = modelField.IsAffectingDocumentStructure;
-            field.Empty = modelField.Empty;
-            field.Group = modelField.Group;
-            field.Tags = isModified
-                ? DocumentModelFieldTagHelper.AddShowOnModify(modelField.Tags)
-                : DocumentModelFieldTagHelper.Normalize(modelField.Tags);
-
-            var hintMessage = modelField.HintMessage ??
-                              _prototype.NamingPolicies.Values
-                                  .Select(x => x.GetFieldHint(modelField))
-                                  .FirstOrDefault(x => (x?.Message != null) || (x?.Links?.Any() == true));
-
-            field.HintMessage = hintMessageProvider.Render(hintMessage);
-
-            if (modelField is
-                {
-                    DataType: DocumentFieldInterfaceDataType.ComplexCollection,
-                    CollectionItemModel: not null
-                })
-            {
-                // поддержки модифиации коллекции в коллекции пока нет, поэтому не передаем текущую
-                var scopedContext = context.ScopeTo(model, null);
-                var fetchItemModel = modelField.CollectionItemModel;
-                var shouldCollapse = modelField.CollectionShouldCollapse ?? ((_, _) => Task.FromResult(DocumentModelFieldCollapseRecord.MakeExpanded()));
-                var value = new List<DocumentModelEditDto>();
-
-                if (modelField.ValueBinder.GetValue(model) is not IEnumerable entries)
-                    return [field];
-
-                var typedCollection = entries.Cast<object>().ToArray();
-
-                var collapseInfo = await shouldCollapse(typedCollection, scopedContext);
-                if (collapseInfo.IsCollapsed)
-                {
-                    var (isCollapsed, collapseHint) = collapseInfo.Strip();
-                    field.Attributes.IsCollapsed = isCollapsed;
-                    field.Attributes.CollapseHint = collapseHint;
-                    return [field];
-                }
-
-                var index = 0;
-                foreach (var entry in typedCollection)
-                {
-                    if (entry != null)
-                    {
-                        var itemModel = await fetchItemModel(entry, index++, scopedContext);
-                        ArgumentNullException.ThrowIfNull(itemModel, "Every item should have a model!");
-
-                        var formId = itemModel.GetModelId(entry);
-                        if (formId == default)
-                            throw new MultiLangException(new MultiLanguageName("Complex collection items must have an unique identifier."));
-
-                        var formDto = await itemModel.ToEditModel(entry, context: scopedContext);
-
-                        if (formDto != null)
-                        {
-                            formDto.Fields.Add(
-                                new()
-                                {
-                                    Key = DocumentModelConstants.HiddenModelFieldName,
-                                    DataType = DocumentFieldInterfaceDataType.Hidden,
-                                    IsAvailable = false,
-                                    Attributes = new()
-                                    {
-                                        IsModified = true
-                                    },
-                                    Value = itemModel.ModelKey
-                                }
-                            );
-                            formDto.Id = formId;
-                            value.Add(formDto);
-                        }
-                    }
-                }
-
-                field.Value = value.ToArray();
-
-                return [field];
-            }
-
-            if (modelField.DataType == DocumentFieldInterfaceDataType.InnerObject)
-            {
-                var (innerModel, type) = ExpandFieldModel(modelField, context, model);
-
-                if (innerModel != null)
-                {
-                    var current = modelField.ValueBinder?.GetValue(model);
-                    var innerObject = modelField.InnerObjectFactory(model, context, current) ?? Activator.CreateInstance(type);
-
-                    if (modelField.UsingDefaultValue && modelField.CorrectValue != null)
-                        innerObject = await modelField.CorrectValue(model, context);
-                    
-                    var innerModelDto = await innerModel.ToEditModel(innerObject, options, context: editableContext);
-
-                    if (innerModelDto != null)
-                    {
-                        var isParentEditable = await IsEditable(model, modelField, editableContext);
-                        foreach (var innerField in innerModelDto.Fields)
-                        {
-                            innerField.Key = $"{modelField.Key}_{innerField.Key}";
-                            innerField.IsEditable = innerField.IsEditable && isParentEditable;
-                            if (string.IsNullOrEmpty(innerField.Group))
-                                innerField.Group = modelField.Group;
-                        }
-
-                        // collect groups from inner model (already localized in innerModelDto)
-                        foreach (var g in innerModelDto.Groups)
-                        {
-                            if (g?.Key.IsNotBlank() == true)
-                                discoveredInnerGroups.Add(g);
-                        }
-                    }
-                    return innerModelDto?.Fields ?? [];
-                }
-
-                return [];
-            }
-
-            string? availableValuesUrl = null;
-            if (modelField.AvailableValuesUrl != null)
-                availableValuesUrl = await modelField.AvailableValuesUrl(model, editableContext);
-
-            var availableItems = await GetAvailableValues(model, editableContext, modelField);
-
-            // back compatibility (surveys)
-            if (availableValuesUrl.IsBlank() && availableItems == null)
-                availableItems = [];
-
-            var fieldValue = modification is null or { Status: DocumentModelFieldModificationStatus.Modified } or { Status: DocumentModelFieldModificationStatus.Persistent }
-                ? modelField.ValueBinder.GetValue(model)
-                : modification.Source;
-
-            field.RawValue = fieldValue;
-
-            if (modification is not { Ambiguous: true } && modelField.ConvertToModel != null)
-                fieldValue = await modelField.ConvertToModel(fieldValue, model, editableContext);
-
-            if (!update && field.DataType == DocumentFieldInterfaceDataType.Password)
-            {
-                var cipherValue = field.RawValue as string;
-                if (CryptoHelper.IsEncryptedData(cipherValue))
-                {
-                    var configuration = context.Resolve<AppConfiguration>();
-                    var cryptoHelper = new CryptoHelper(configuration.Security.EncryptPasswordKey);
-                    if (cryptoHelper.TryDecrypt(cipherValue, out var decodedValue))
-                    {
-                        field.RawValue = decodedValue;
-                    }
-                    else
-                    {
-                        field.RawValue = null;
-                        field.Value = null;
-                        fieldValue = null;
-                    }
-                }
-            }
-
-            if (modelField.IsSchemaImmutable != null)
-                field.Attributes.IsSchemaImmutable = await modelField.IsSchemaImmutable(model, editableContext);
-
-            field.CanCreate = await CanCreate(model, modelField, editableContext);
-            field.IsRequired = await IsRequired(model, modelField, editableContext);
-
-            if (availableItems != null)
-            {
-                var hasOrderId = availableItems.All(x => x.OrderId != null) == true;
-                availableItems = hasOrderId ? availableItems = availableItems.OrderBy(x => x.OrderId!) : availableItems.OrderBy(x => localizationService.Format(x.Name));
-                field.Attributes.AvailableValues = availableItems.ToArray();
-            }
-
-            field.Attributes.AvailableValuesUrl = availableValuesUrl;
-            field.Value = await CanAccessToValue(model, modelField, editableContext)
-                ? context.FieldValueConverter.ConvertToDtoForFront(modelField, fieldValue, false)
-                : default;
-            field.Attributes.WYSIWYGControllerRoute = modelField.WYSIWYGControllerRoute?.Invoke(model, editableContext);
-            field.Attributes.Tools = modelField.Tools?.Any() == true ? modelField.Tools : null;
-            field.Placeholder = modelField.Placeholder != null
-                ? localizationService.Format(await modelField.Placeholder(model, editableContext))
-                : string.Empty;
-            field.Attributes.PasswordGenerationUrl = modelField.Attributes.PasswordGenerationUrl;
-            field.Attributes.PasswordValidationUrl = modelField.Attributes.PasswordValidationUrl;
-            field.Attributes.CanCopy = modelField.Attributes.CanCopy;
-
-            if (modelField is { UsingDefaultValue: true, CorrectValue: not null } && (!options.CreatePrototype || (options.SkipCorrectValue && !modelField.Hidden)))
-            {
-                field.Value = await modelField.CorrectValue(model, context);
-            }
-
-            field.Attributes.ShowClear = await ShowClear(model, modelField, editableContext);
-
-            if (field.DataType == DocumentFieldInterfaceDataType.ObjectList)
-            {
-                var (itemModel, itemType) = ExpandFieldModel(modelField, context, model);
-
-                if (itemModel != null)
-                {
-                    var editOptions = new DocumentModelEditOptions { CreatePrototype = true, SkipCorrectValue = true, ExposeAllGroups = true };
-                    {
-                        var scopedContext = context.ScopeTo(model, modification);
-                        if (modelField.CreateObjectItem != null)
-                            field.Attributes.Prototype = await itemModel.ToEditModel(modelField.CreateObjectItem(model), editOptions, scopedContext);
-                        else
-                            field.Attributes.Prototype = await itemModel.ToEditModel(Activator.CreateInstance(itemType), editOptions, scopedContext);
-                    }
-                    // Enrich prototype groups: if item model contains InnerObject fields whose inner types
-                    // are polymorphic or otherwise unresolved at prototype time, merge their groups
-                    // from available implementations into the prototype's group list
-                    try
-                    {
-                        var proto = field.Attributes.Prototype;
-                        if (proto != null)
-                        {
-                            var protoGroups = proto.Groups?.Select(g => g.Key).ToHashSet() ?? new HashSet<string>();
-                            var itemModelFields = itemModel.GetFields(all: true);
-                            foreach (var innerField in itemModelFields.Where(f => f.DataType == DocumentFieldInterfaceDataType.InnerObject))
-                            {
-                                var baseType = innerField.ValueBinder?.StoredType();
-                                if (baseType == null)
-                                    continue;
-                                // Always enumerate all known implementations (including the base type itself).
-                                // This covers cases when the polymorphic root is a concrete class (not abstract/interface),
-                                // e.g. MapPolymorphic with a non-abstract root type.
-                                var candidateTypes = baseType
-                                    .EnumerateImplementations()
-                                    .DefaultIfEmpty(baseType)
-                                    .ToArray();
-
-                                foreach (var impl in candidateTypes)
-                                {
-                                    try
-                                    {
-                                        var innerModel = _prototype.ConfigurationSet.GetModel(impl, string.Empty, _contextFactory);
-                                        if (innerModel == null)
-                                            continue;
-                                        var innerDto = await innerModel.ToEditModel(Activator.CreateInstance(impl), editOptions, context);
-                                        if (innerDto?.Groups == null)
-                                            continue;
-                                        foreach (var g in innerDto.Groups)
-                                        {
-                                            if (g?.Key.IsNotBlank() == true && !protoGroups.Contains(g.Key))
-                                            {
-                                                proto.Groups!.Add(g);
-                                                protoGroups.Add(g.Key);
-                                            }
-                                        }
-                                    } catch
-                                    {
-                                        // best-effort enrichment; ignore failures
-                                    }
-                                }
-                            }
-                        }
-                    } catch
-                    {
-                        // ignore enrichment errors silently
-                    }
-
-                    async Task<DocumentModelEditDto[]?> ConvertToForm(object? rawValue)
-                    {
-                        if (rawValue == null)
-                            return null;
-
-                        var value = new List<DocumentModelEditDto>();
-                        if (rawValue is IEnumerable<object> valueItems)
-                        {
-                            foreach (var item in valueItems.Select(item => item is BsonDocument bsonDocument ? BsonSerializer.Deserialize(bsonDocument, itemType) : item))
-                            {
-                                //Предзаполнение не передаём модификацию, чтобы исходное значение бралось из объекта, в остальных случаях будет модификация с пустым объектом
-                                var scopedModification = modification?.Status == DocumentModelFieldModificationStatus.Preserved ? null : modification;
-                                var scopedContext = context.ScopeTo(model, scopedModification);
-                                var editModel = await itemModel.ToEditModel(
-                                    item,
-                                    new DocumentModelEditOptions(options)
-                                    {
-                                        ForceValidate = options.ForceValidate || editableContext.UpdatingFields.Contains(field.Key)
-                                    },
-                                    context: scopedContext
-                                );
-                                if (editModel != null)
-                                    value.Add(editModel);
-                            }
-                        }
-
-                        return value.ToArray();
-                    }
-
-                    field.RawValue = field.Value;
-                    field.Attributes.SourceValue = await ConvertToForm(field.Attributes.SourceValue);
-                    field.Value = await ConvertToForm(field.Value) ?? [];
-                }
-            }
-
-            else if (field.DataType == DocumentFieldInterfaceDataType.Decimal && modification is not { Ambiguous: true })
-            {
-                field.Value = DataConverter.ConvertTo(typeof(decimal), field.Value);
-            }
-
-            else if (field.DataType == DocumentFieldInterfaceDataType.DropDown ||
-                     field.DataType == DocumentFieldInterfaceDataType.DropDownMulti ||
-                     field.DataType == DocumentFieldInterfaceDataType.HierarchicalDropDown ||
-                     field.DataType == DocumentFieldInterfaceDataType.HierarchicalDropDownMulti ||
-                     field.DataType == DocumentFieldInterfaceDataType.OrderedDropDownMulti)
-            {
-                field.Value = ConvertDropDownValue(field);
-
-                if (field.Attributes.AvailableValues?.Any() == true &&
-                    field.Value is AvailableValueItemDto currentValue &&
-                    currentValue.Value != null)
-                {
-                    var valueInAvailableValues =
-                        field.Attributes.AvailableValues.FirstOrDefault(x => currentValue.Value.Equals(x.Value));
-
-                    if (valueInAvailableValues != null)
-                        field.Value = valueInAvailableValues;
-                }
-            }
-
-            else if (!update && field.DataType == DocumentFieldInterfaceDataType.Password && field.Value is not null)
-            {
-                field.Value = string.Empty;
-            }
-
-            field.Validation = await GetFieldValidations(model, modelField, field, options, editableContext, localizationService);
-            var text = await GetFieldText(editableContext, modelField, field);
-            field.Text = text == null ? null : localizationService.Format(text);
-            field.Width = modelField.Width;
-
-            return [field];
-        } catch (Exception e)
-        {
-            Log.Error(e, "Ошибка расчета значения поля");
-            field.DataType = DocumentFieldInterfaceDataType.Error;
-            return [field];
-        }
-    }
-
-    object? ConvertDropDownValue(DocumentModelEditFieldDto field)
-    {
-        AvailableValueItemDto? FindById(object? id)
-        {
-            if (id is string)
-            {
-                return field.Attributes.AvailableValues?
-                    .FirstOrDefault(
-                    v => id.Equals(v.Value?.ToString()));
-            }
-            return field.Attributes.AvailableValues?
-                .FirstOrDefault(
-                    v => id?.Equals(v.Value) == true ||
-                         (id == null && v.Value == null)
-                );
-        }
-
-        AvailableValueItemDto[]? ConvertInternal()
-        {
-            if (field.Value is IEnumerable<AvailableValueItemDto> availableValues)
-                return availableValues.ToArray();
-
-            if (field.Value is IEnumerable<HierarchicalAvailableValueItemDto> hierarchicalValues)
-                return hierarchicalValues.Cast<AvailableValueItemDto>().ToArray();
-
-            if (field.Value is IEnumerable<IReference> references)
-                return references
-                    .Select(x => new AvailableValueItemDto(x.Id, x.Name))
-                    .ToArray();
-
-            if (field.Value is AvailableValueItemDto availableValueItemDto)
-                return [availableValueItemDto];
-
-            if (field.Value is IReference reference)
-                return [new AvailableValueItemDto(reference.Id, reference.Name)];
-
-            var idList = field.Value is ICollection collection
-               ? collection.Cast<object?>().ToArray()
-               : field.Value is BsonArray bsonArray
-                   ? bsonArray.ToArray()
-                   : [field.Value];
-
-            return idList
-                .Where(id => id != null)
-                .Cast<object>()
-                .Select(
-                    id =>
-                    {
-                        var value = FindById(id);
-                        if (value != null)
-                            return value;
-
-                        if (ObjectId.TryParse(id.ToString(), out var parsedId) && parsedId == ObjectId.Empty)
-                        {
-                            return new AvailableValueItemDto(id, string.Empty)
-                            {
-                                IsDisabled = true,
-                            };
-                        }
-
-                        return new AvailableValueItemDto()
-                        {
-                            Name = id.ToString()?.AsMultiLang(),
-                            Value = id is ISafeEnum safeEnum
-                                ? safeEnum.GetValue()
-                                : id,
-                            IsDisabled = true
-                        };
-                    }
-                )
-                .ToArray();
-        }
-
-        var items = ConvertInternal();
-
-        if (items != null && field.Attributes.AvailableValues != null && field.Attributes.AvailableValuesUrl.IsBlank())
-            foreach (var item in items)
-                item.IsDisabled = item.IsDisabled || FindById(item.Value) == null;
-
-        if (field.DataType == DocumentFieldInterfaceDataType.DropDown ||
-            field.DataType == DocumentFieldInterfaceDataType.HierarchicalDropDown)
-            return items?.FirstOrDefault();
-        return items;
-    }
-
-    async Task<IEnumerable<DocumentModelCompactFieldDto>> BuildDocumentViewCompactModelField(
-        TModel model,
-        DocumentModelField<TModel> modelField,
-        DocumentModelContext context,
-        IDocumentModelCompactFieldValuePipeline[]? pipelines = null
-    )
-    {
-        if (modelField.DataType == DocumentFieldInterfaceDataType.InnerObject)
-        {
-            var type = modelField.ValueBinder.StoredType();
-
-            ArgumentNullException.ThrowIfNull(type, $"Unable to get field {modelField.Id} stored type");
-
-            var modelKey = modelField.GetInnerObjectModelKey?.Invoke(model, _contextFactory.Create(context.DocumentModel, scopeObject: model));
-            var innerModel = _prototype.ConfigurationSet.GetModel(type, modelKey, _contextFactory);
-            if (innerModel == null)
-                return [];
-
-            var current = modelField.ValueBinder?.GetValue(model);
-            var innerObject = modelField.InnerObjectFactory(model, context, current) ?? Activator.CreateInstance(type);
-
-            if (innerObject != null)
-            {
-                var innerModelDto = await innerModel.ToCompactViewModel(innerObject, context, pipelines);
-                if (context.KeepInnerObjects)
-                {
-                    return [new DocumentModelCompactFieldDto
-                    {
-                        Key = modelField.Key,
-                        DataType = DocumentFieldInterfaceDataType.InnerObject,
-                        Value = innerModelDto
-                    }];
-                }
-                foreach (var innerField in innerModelDto.Fields)
-                    innerField.Key = $"{modelField.Key}_{innerField.Key}";
-                return innerModelDto.Fields;
-            }
-
-            return [];
-        }
-
-        object? value;
-        try
-        {
-            value = modelField.ValueBinder.GetValue(model);
-            // preserveReferences - костыль, висит логика на таком поведении
-            value = context.FieldValueConverter.ConvertToDtoForFront(modelField, value, true);
-        } catch (Exception ex)
-        {
-            throw new Exception(
-                $"Ошибка при получении значения поля:{model.GetType().Name} - {modelField.Title?.ToString(Language.Ru)}, id: {modelField.Id}. " +
-                $"Message: {ex.Message}. InnerException: {ex.InnerException}");
-        }
-
-        var field = new DocumentModelCompactFieldDto
-        {
-            Key = modelField.Key,
-            DataType = modelField.DataType,
-            Value = pipelines == null
-                ? value
-                : await pipelines.Aggregate(
-                    Task.FromResult(value),
-                    async (v, f) => await f.Process(modelField, await v, context)
-                )
-        };
-
-        if (modelField.DataType == DocumentFieldInterfaceDataType.ObjectList)
-        {
-            var fieldItemType = modelField.InnerObjectModelType ?? modelField.ValueBinder.StoredType()?.GetItemType();
-
-            ArgumentNullException.ThrowIfNull(fieldItemType, $"Unable to get field {modelField.Id} stored type");
-
-            var modelKey = modelField.GetInnerObjectModelKey?.Invoke(model, _contextFactory.Create(context.DocumentModel, scopeObject: model));
-            var documentModel = _prototype.ConfigurationSet.GetModel(fieldItemType, modelKey, _contextFactory);
-
-            if (documentModel != null)
-            {
-                var fieldValue = Array.Empty<DocumentModelCompactDto>();
-                if (field.Value is IEnumerable<object> x)
-                    fieldValue = await x
-                        .Select(async item => await documentModel.ToCompactViewModel(item, context, pipelines))
-                        .ToArrayAsync();
-
-                field.Value = fieldValue;
-            }
-        }
-
-        return [field];
-    }
-
     async Task<bool> IsEditable(
         TModel model,
         DocumentModelField<TModel> modelField,
@@ -1759,11 +1131,6 @@ public partial class DocumentModel<TModel> : IDocumentModel
         ILocalizationService localizationService
     )
     {
-        if (modelField.DataType == DocumentFieldInterfaceDataType.InnerObject)
-            // ничего не делаем, валидаторы не поддерживаются
-            return new List<DocumentEditFieldValidationDto>();
-
-        var validationResults = new HashSet<DocumentEditFieldValidationDto>(new EqualsByFieldComparer<DocumentEditFieldValidationDto, string>(vr => vr.Name));
         var validators = new List<Func<TModel, DocumentModelContext, IDocumentFieldValidator>>(modelField.Validators);
         if (field.IsRequired)
             validators.Add((_, _) => new RequiredFieldValidator());
@@ -1772,11 +1139,11 @@ public partial class DocumentModel<TModel> : IDocumentModel
         {
             if (validator.ShouldAdd(field))
             {
-                var result = new DocumentEditFieldValidationDto
-                {
-                    Name = validator.Name,
-                    Parameters = validator.Parameters,
-                    Message = localizationService.Format(validator.Message),
+                 var result = new DocumentEditFieldValidationDto
+                 {
+                     Name = validator.Name,
+                     Parameters = validator.Parameters,
+                     Message = localizationService.Format(validator.Message),
                 };
                 if (context.UpdatingFields.Contains(modelField.Key) || options.ForceValidate)
                     result.Result = await validator.Validate(field, context, localizationService);
@@ -2036,26 +1403,6 @@ public partial class DocumentModel<TModel> : IDocumentModel
         ValidateAndThrow(editModel);
     }
 
-    public void ValidateAndThrow(DocumentModelEditDto? editModel)
-    {
-        if (editModel == null)
-            throw new ValidationMultiLangException(new MultiLanguageName("Модель равна null"));
-
-        if (!editModel.IsValid)
-        {
-            var errors = new List<IMultiLangValue>();
-            var fieldsWithErrors = new Dictionary<string, IReadOnlyList<IMultiLangValue?>?>();
-            FillErrors(editModel, errors, fieldsWithErrors);
-            if (errors.Count > 0)
-            {
-                var errorMessage = MultiLanguageName.Join("\n", errors);
-                throw new InvalidDocumentModelException(editModel, fieldsWithErrors, errorMessage);
-            }
-            else if (!string.IsNullOrEmpty(editModel.Validation))
-                throw new ValidationMultiLangException(new MultiLanguageName(editModel.Validation));
-        }
-
-    }
     public async Task BeforeWrite(TModel document, DateOnly? timePoint = null)
     {
         if (_prototype.BeforeWrite != null)
@@ -2084,92 +1431,8 @@ public partial class DocumentModel<TModel> : IDocumentModel
             {
                 errors.Add($"{field.Title}:{Environment.NewLine}" +
                         MultiLanguageName.Join(Environment.NewLine, validationErrors));
-                fieldsWithErrors[field.Key] = validationErrors;
             }
         }
-    }
-
-    async Task<List<DocumentModelField<TModel>>> GetUsedInModelFields(
-        TModel model,
-        DocumentModelContext context,
-        bool keepNotAvailable = false
-    )
-    {
-        var res = new List<DocumentModelField<TModel>>();
-        foreach (var (_, field) in _prototype.Fields)
-            if (field.IsUsedInModel && (keepNotAvailable || await IsAvailable(model, field, context)))
-                res.Add(field);
-
-        return res;
-    }
-
-    async Task<List<DocumentModelButton<TModel>>> CollectButtons(
-        TModel model,
-        DocumentModelContext context,
-        bool keepInvisible = false
-    )
-    {
-        var res = new List<DocumentModelButton<TModel>>();
-        foreach (var (_, button) in _prototype.Buttons)
-            if (keepInvisible || await button.AvailabilityCallback(model, context))
-                res.Add(button);
-        return res;
-    }
-
-    List<DocumentModelGroup> GetUsedInModelGroups(List<DocumentModelEditFieldDto> fields, bool exposeAll)
-    {
-        if (exposeAll)
-            return _prototype.Groups;
-
-        var identifiers = fields
-            .Select(f => f.Group)
-            .Where(g => !string.IsNullOrEmpty(g))
-            .ToHashSet();
-
-        // Take groups already declared on the prototype and used by fields
-        var result = _prototype.Groups
-            .Where(g => identifiers.Contains(g.Key))
-            .ToList();
-
-        // Synthesize missing groups that appear on fields (e.g., from inner models)
-        foreach (var id in identifiers)
-        {
-            if (result.Any(g => g.Key == id))
-                continue;
-
-            result.Add(new DocumentModelGroup
-            {
-                Key = id!,
-                Title = MultiLanguageName.Empty
-            });
-        }
-
-        return result;
-    }
-
-    Task<List<DocumentModelServiceFieldDto>> GetUsedInModelServiceFields(
-        TModel model
-    )
-    {
-        var result = _prototype.Fields
-            .Where(f => f.Value.IsServiceField)
-            .Select(
-                f => new DocumentModelServiceFieldDto
-                {
-                    Name = f.Value.Key,
-                    Value = f.Value.ValueBinder.GetValue(model)
-                }
-            )
-            .ToList();
-        return Task.FromResult(result);
-    }
-
-    HashSet<(string Key, bool KeepInModel)> GetFieldsKeysForHideViewModel()
-    {
-        return _prototype.Fields
-            .Where(x => x.Value.Hidden)
-            .Select(x => (x.Key, x.Value.KeepInModel))
-            .ToHashSet();
     }
 
     public IDocumentModelPolicy<TModel>[] GetPolicies()
